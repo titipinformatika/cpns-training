@@ -30,9 +30,8 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// TODO: Register routes di sini nanti (fase berikutnya)
-// import apiRouter from './routes/index.js';
-// app.use('/api', apiRouter);
+import apiRouter from './routes/index.js';
+app.use('/api', apiRouter);
 
 // === 404 Handler ===
 app.use((_req, res) => {
