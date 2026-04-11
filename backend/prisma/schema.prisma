@@ -4,10 +4,635 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
+}
+
+// ==============================================================================
+// ENUMS
+// ==============================================================================
+enum UserKategori {
+  FREE
+  PREMIUM
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum UserKategoriAccess {
+  FREE
+  PREMIUM
+  ALL
+}
+
+enum LevelSoal {
+  MUDAH
+  SEDANG
+  SULIT
+  HOST
+}
+
+enum JawabanOpsi {
+  A
+  B
+  C
+  D
+  E
+}
+
+enum StatusKontribusi {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TipeUjian {
+  TRYOUT
+  LATIHAN
+  QUIZ
+}
+
+enum PeruntukanUjian {
+  FREE
+  PREMIUM
+  ALL
+}
+
+enum StatusHasilUjian {
+  BERLANGSUNG
+  SELESAI
+  TIMEOUT
+}
+
+enum TingkatPenguasaan {
+  BELUM
+  RENDAH
+  SEDANG
+  TINGGI
+  MAHIR
+}
+
+enum StatusSesi {
+  AKTIF
+  TERPUTUS
+  DILANJUTKAN
+  SELESAI
+}
+
+enum JenisInstansi {
+  KEMENTERIAN
+  LEMBAGA
+  PEMDA
+  LAINNYA
+}
+
+enum JenisKelamin {
+  LAKI_LAKI
+  PEREMPUAN
+}
+
+enum JenisLaporan {
+  JAWABAN_SALAH
+  SOAL_SALAH
+  TYPO
+  PEMBAHASAN_SALAH
+  GAMBAR_RUSAK
+  DUPLIKAT
+  LAINNYA
+}
+
+enum StatusLaporan {
+  PENDING
+  DITINJAU
+  DIPERBAIKI
+  DITOLAK
+}
+
+// ==============================================================================
+// MODELS
+// ==============================================================================
+
+// 1. users
+model User {
+  id                 Int                     @id @default(autoincrement())
+  nama               String                  @db.VarChar(100)
+  email              String                  @unique @db.VarChar(150)
+  password           String                  @db.VarChar(255)
+  kategori           UserKategori            @default(FREE)
+  avatar             String?                 @db.VarChar(255)
+  is_active          Boolean                 @default(true)
+  created_at         DateTime                @default(now())
+  updated_at         DateTime                @updatedAt
+
+  // Relations
+  kontribusi_soal    KontribusiSoal[]
+  hasil_ujian        HasilUjian[]
+  sesi_ujian         SesiUjian[]
+  statistik_kategori StatistikUserKategori[]
+  statistik_jenis    StatistikUserJenis[]
+  biodata            BiodataUser?
+  laporan_soal       LaporanSoal[]
+
+  @@map("users")
+}
+
+// 2. admins
+model Admin {
+  id              Int              @id @default(autoincrement())
+  nama            String           @db.VarChar(100)
+  email           String           @unique @db.VarChar(150)
+  password        String           @db.VarChar(255)
+  role            AdminRole        @default(ADMIN)
+  is_active       Boolean          @default(true)
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+
+  // Relations
+  menus           Menu[]
+  bank_soal       BankSoal[]
+  soal            Soal[]
+  kontribusi_soal KontribusiSoal[]
+  ujian           Ujian[]
+  instansi        Instansi[]
+  formasi         Formasi[]
+  laporan_soal    LaporanSoal[]
+
+  @@map("admins")
+}
+
+// 3. menus
+model Menu {
+  id         Int      @id @default(autoincrement())
+  nama       String   @db.VarChar(100)
+  url        String?  @db.VarChar(255)
+  icon       String?  @db.VarChar(100)
+  parent_id  Int?
+  urutan     Int      @default(0)
+  is_active  Boolean  @default(true)
+  created_by Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  parent      Menu?        @relation("MenuToMenu", fields: [parent_id], references: [id])
+  children    Menu[]       @relation("MenuToMenu")
+  admin       Admin        @relation(fields: [created_by], references: [id])
+  menu_access MenuAccess[]
+
+  @@map("menus")
+}
+
+// 4. menu_access
+model MenuAccess {
+  id            Int                @id @default(autoincrement())
+  menu_id       Int
+  user_kategori UserKategoriAccess
+  is_allowed    Boolean            @default(true)
+  created_at    DateTime           @default(now())
+  updated_at    DateTime           @updatedAt
+
+  menu Menu @relation(fields: [menu_id], references: [id], onDelete: Cascade)
+
+  @@unique([menu_id, user_kategori])
+  @@map("menu_access")
+}
+
+// 5. kategori_soal
+model KategoriSoal {
+  id            Int      @id @default(autoincrement())
+  kode          String   @unique @db.VarChar(10)
+  nama          String   @db.VarChar(100)
+  deskripsi     String?  @db.Text
+  passing_grade Float    @default(0)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  jenis_soal      JenisSoal[]
+  soal            Soal[]
+  kontribusi_soal KontribusiSoal[]
+  statistik       StatistikUserKategori[]
+
+  @@map("kategori_soal")
+}
+
+// 6. jenis_soal
+model JenisSoal {
+  id               Int      @id @default(autoincrement())
+  kategori_soal_id Int
+  nama             String   @db.VarChar(100)
+  deskripsi        String?  @db.Text
+  created_at       DateTime @default(now())
+
+  kategori        KategoriSoal         @relation(fields: [kategori_soal_id], references: [id], onDelete: Cascade)
+  soal            Soal[]
+  kontribusi_soal KontribusiSoal[]
+  statistik       StatistikUserJenis[]
+
+  @@unique([kategori_soal_id, nama])
+  @@map("jenis_soal")
+}
+
+// 7. bank_soal
+model BankSoal {
+  id         Int      @id @default(autoincrement())
+  nama       String   @db.VarChar(200)
+  deskripsi  String?  @db.Text
+  is_active  Boolean  @default(true)
+  created_by Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  admin Admin   @relation(fields: [created_by], references: [id])
+  soal  Soal[]
+  ujian Ujian[]
+
+  @@map("bank_soal")
+}
+
+// 8. soal
+model Soal {
+  id                Int          @id @default(autoincrement())
+  bank_soal_id      Int
+  kategori_soal_id  Int
+  jenis_soal_id     Int
+  level             LevelSoal
+  pertanyaan        String?      @db.Text
+  pertanyaan_gambar String?      @db.VarChar(255)
+  opsi_a            String?      @db.Text
+  opsi_a_gambar     String?      @db.VarChar(255)
+  opsi_b            String?      @db.Text
+  opsi_b_gambar     String?      @db.VarChar(255)
+  opsi_c            String?      @db.Text
+  opsi_c_gambar     String?      @db.VarChar(255)
+  opsi_d            String?      @db.Text
+  opsi_d_gambar     String?      @db.VarChar(255)
+  opsi_e            String?      @db.Text
+  opsi_e_gambar     String?      @db.VarChar(255)
+  jawaban_benar     JawabanOpsi?
+  pembahasan        String?      @db.Text
+  pembahasan_gambar String?      @db.VarChar(255)
+  is_active         Boolean      @default(true)
+  created_by_admin  Int?
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+
+  bank_soal       BankSoal         @relation(fields: [bank_soal_id], references: [id], onDelete: Cascade)
+  kategori_soal   KategoriSoal     @relation(fields: [kategori_soal_id], references: [id])
+  jenis_soal      JenisSoal        @relation(fields: [jenis_soal_id], references: [id])
+  admin           Admin?           @relation(fields: [created_by_admin], references: [id])
+  kontribusi_soal KontribusiSoal[]
+  ujian_soal      UjianSoal[]
+  laporan_soal    LaporanSoal[]
+
+  @@map("soal")
+}
+
+// 9. kontribusi_soal
+model KontribusiSoal {
+  id                Int              @id @default(autoincrement())
+  user_id           Int
+  kategori_soal_id  Int
+  jenis_soal_id     Int
+  level             LevelSoal
+  pertanyaan        String?          @db.Text
+  pertanyaan_gambar String?          @db.VarChar(255)
+  opsi_a            String?          @db.Text
+  opsi_a_gambar     String?          @db.VarChar(255)
+  opsi_b            String?          @db.Text
+  opsi_b_gambar     String?          @db.VarChar(255)
+  opsi_c            String?          @db.Text
+  opsi_c_gambar     String?          @db.VarChar(255)
+  opsi_d            String?          @db.Text
+  opsi_d_gambar     String?          @db.VarChar(255)
+  opsi_e            String?          @db.Text
+  opsi_e_gambar     String?          @db.VarChar(255)
+  jawaban_benar     JawabanOpsi?
+  pembahasan        String?          @db.Text
+  pembahasan_gambar String?          @db.VarChar(255)
+  status            StatusKontribusi @default(PENDING)
+  reviewed_by       Int?
+  review_note       String?          @db.Text
+  reviewed_at       DateTime?
+  soal_id           Int?
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+
+  user          User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  kategori_soal KategoriSoal @relation(fields: [kategori_soal_id], references: [id])
+  jenis_soal    JenisSoal    @relation(fields: [jenis_soal_id], references: [id])
+  admin         Admin?       @relation(fields: [reviewed_by], references: [id])
+  soal          Soal?        @relation(fields: [soal_id], references: [id])
+
+  @@map("kontribusi_soal")
+}
+
+// 10. ujian
+model Ujian {
+  id           Int             @id @default(autoincrement())
+  nama         String          @db.VarChar(200)
+  deskripsi    String?         @db.Text
+  durasi_menit Int
+  bank_soal_id Int
+  tipe         TipeUjian
+  peruntukan   PeruntukanUjian
+  is_active    Boolean         @default(true)
+  created_by   Int
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+
+  bank_soal   BankSoal     @relation(fields: [bank_soal_id], references: [id])
+  admin       Admin        @relation(fields: [created_by], references: [id])
+  ujian_soal  UjianSoal[]
+  hasil_ujian HasilUjian[]
+  sesi_ujian  SesiUjian[]
+
+  @@map("ujian")
+}
+
+// 11. ujian_soal
+model UjianSoal {
+  id         Int      @id @default(autoincrement())
+  ujian_id   Int
+  soal_id    Int
+  nomor_urut Int
+  skor       Int      @default(5)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  ujian         Ujian              @relation(fields: [ujian_id], references: [id], onDelete: Cascade)
+  soal          Soal               @relation(fields: [soal_id], references: [id])
+  skor_tkp      UjianSoalSkorTkp?
+  jawaban_ujian JawabanUjian[]
+
+  @@unique([ujian_id, soal_id])
+  @@map("ujian_soal")
+}
+
+// 12. ujian_soal_skor_tkp
+model UjianSoalSkorTkp {
+  id            Int @id @default(autoincrement())
+  ujian_soal_id Int @unique
+  skor_a        Int @default(1)
+  skor_b        Int @default(2)
+  skor_c        Int @default(3)
+  skor_d        Int @default(4)
+  skor_e        Int @default(5)
+
+  ujian_soal UjianSoal @relation(fields: [ujian_soal_id], references: [id], onDelete: Cascade)
+
+  @@map("ujian_soal_skor_tkp")
+}
+
+// 13. hasil_ujian
+model HasilUjian {
+  id             Int              @id @default(autoincrement())
+  user_id        Int
+  ujian_id       Int
+  percobaan_ke   Int              @default(1)
+  total_soal     Int
+  jumlah_dijawab Int              @default(0)
+  jumlah_benar   Int              @default(0)
+  jumlah_salah   Int              @default(0)
+  jumlah_kosong  Int              @default(0)
+  skor_tiu       Float            @default(0)
+  skor_twk       Float            @default(0)
+  skor_tkp       Float            @default(0)
+  skor_total     Float            @default(0)
+  is_lulus       Boolean          @default(false)
+  status         StatusHasilUjian @default(BERLANGSUNG)
+  waktu_mulai    DateTime
+  waktu_selesai  DateTime?
+  durasi_detik   Int              @default(0)
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+
+  user          User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  ujian         Ujian          @relation(fields: [ujian_id], references: [id])
+  jawaban_ujian JawabanUjian[]
+  sesi_ujian    SesiUjian?
+
+  @@index([user_id, ujian_id])
+  @@index([user_id, created_at])
+  @@map("hasil_ujian")
+}
+
+// 14. jawaban_ujian
+model JawabanUjian {
+  id                Int          @id @default(autoincrement())
+  hasil_ujian_id    Int
+  ujian_soal_id     Int
+  jawaban_user      JawabanOpsi?
+  is_benar          Boolean?
+  skor_diperoleh    Float        @default(0)
+  waktu_jawab_detik Int          @default(0)
+  is_ragu           Boolean      @default(false)
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+
+  hasil_ujian HasilUjian @relation(fields: [hasil_ujian_id], references: [id], onDelete: Cascade)
+  ujian_soal  UjianSoal  @relation(fields: [ujian_soal_id], references: [id])
+
+  @@unique([hasil_ujian_id, ujian_soal_id])
+  @@map("jawaban_ujian")
+}
+
+// 15. statistik_user_kategori
+model StatistikUserKategori {
+  id                 Int      @id @default(autoincrement())
+  user_id            Int
+  kategori_soal_id   Int
+  total_soal_dijawab Int      @default(0)
+  total_benar        Int      @default(0)
+  total_salah        Int      @default(0)
+  total_skor         Float    @default(0)
+  skor_tertinggi     Float    @default(0)
+  skor_terendah      Float    @default(0)
+  skor_rata_rata     Float    @default(0)
+  persentase_benar   Float    @default(0)
+  total_ujian        Int      @default(0)
+  updated_at         DateTime @updatedAt
+
+  user          User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  kategori_soal KategoriSoal @relation(fields: [kategori_soal_id], references: [id])
+
+  @@unique([user_id, kategori_soal_id])
+  @@map("statistik_user_kategori")
+}
+
+// 16. statistik_user_jenis
+model StatistikUserJenis {
+  id                 Int               @id @default(autoincrement())
+  user_id            Int
+  jenis_soal_id      Int
+  total_soal_dijawab Int               @default(0)
+  total_benar        Int               @default(0)
+  total_salah        Int               @default(0)
+  skor_rata_rata     Float             @default(0)
+  persentase_benar   Float             @default(0)
+  tingkat_penguasaan TingkatPenguasaan @default(BELUM)
+  updated_at         DateTime          @updatedAt
+
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  jenis_soal JenisSoal @relation(fields: [jenis_soal_id], references: [id])
+
+  @@unique([user_id, jenis_soal_id])
+  @@map("statistik_user_jenis")
+}
+
+// 17. sesi_ujian  
+model SesiUjian {
+  id                  Int        @id @default(autoincrement())
+  hasil_ujian_id      Int        @unique
+  user_id             Int
+  ujian_id            Int
+  nomor_soal_terakhir Int        @default(1)
+  sisa_waktu_detik    Int
+  total_terjawab      Int        @default(0)
+  total_belum_jawab   Int
+  total_ragu          Int        @default(0)
+  status_sesi         StatusSesi @default(AKTIF)
+  last_heartbeat      DateTime
+  ip_address          String?    @db.VarChar(45)
+  user_agent          String?    @db.VarChar(500)
+  jumlah_resume       Int        @default(0)
+  created_at          DateTime   @default(now())
+  updated_at          DateTime   @updatedAt
+
+  hasil_ujian HasilUjian @relation(fields: [hasil_ujian_id], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  ujian       Ujian      @relation(fields: [ujian_id], references: [id])
+
+  @@index([user_id, status_sesi])
+  @@map("sesi_ujian")
+}
+
+// 18. tingkat_pendidikan
+model TingkatPendidikan {
+  id         Int      @id @default(autoincrement())
+  nama       String   @unique @db.VarChar(50)
+  urutan     Int      @default(0)
+  created_at DateTime @default(now())
+
+  biodata BiodataUser[]
+
+  @@map("tingkat_pendidikan")
+}
+
+// 19. jurusan
+model Jurusan {
+  id         Int      @id @default(autoincrement())
+  nama       String   @db.VarChar(200)
+  rumpun     String?  @db.VarChar(100)
+  created_at DateTime @default(now())
+
+  biodata BiodataUser[]
+
+  @@index([nama])
+  @@map("jurusan")
+}
+
+// 20. instansi
+model Instansi {
+  id         Int           @id @default(autoincrement())
+  nama       String        @db.VarChar(200)
+  singkatan  String?       @db.VarChar(50)
+  jenis      JenisInstansi @default(LEMBAGA)
+  logo       String?       @db.VarChar(255)
+  is_active  Boolean       @default(true)
+  created_by Int
+  created_at DateTime      @default(now())
+  updated_at DateTime      @updatedAt
+
+  admin   Admin         @relation(fields: [created_by], references: [id])
+  formasi Formasi[]
+  biodata BiodataUser[]
+
+  @@index([nama])
+  @@map("instansi")
+}
+
+// 21. formasi
+model Formasi {
+  id                     Int      @id @default(autoincrement())
+  instansi_id            Int
+  nama_jabatan           String   @db.VarChar(200)
+  kualifikasi_pendidikan String?  @db.VarChar(100)
+  jumlah_formasi         Int      @default(1)
+  lokasi_penempatan      String?  @db.VarChar(200)
+  gaji_min               BigInt?
+  gaji_max               BigInt?
+  is_active              Boolean  @default(true)
+  created_by             Int
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  instansi Instansi      @relation(fields: [instansi_id], references: [id], onDelete: Cascade)
+  admin    Admin         @relation(fields: [created_by], references: [id])
+  biodata  BiodataUser[]
+
+  @@index([instansi_id])
+  @@index([nama_jabatan])
+  @@map("formasi")
+}
+
+// 22. biodata_user
+model BiodataUser {
+  id                    Int           @id @default(autoincrement())
+  user_id               Int           @unique
+  nama_lengkap          String?       @db.VarChar(150)
+  no_hp                 String?       @db.VarChar(20)
+  tanggal_lahir         DateTime?     @db.Date
+  jenis_kelamin         JenisKelamin?
+  alamat                String?       @db.Text
+  provinsi              String?       @db.VarChar(100)
+  kota                  String?       @db.VarChar(100)
+  tingkat_pendidikan_id Int?
+  jurusan_id            Int?
+  nama_universitas      String?       @db.VarChar(200)
+  tahun_lulus           Int?
+  instansi_id           Int?
+  formasi_id            Int?
+  created_at            DateTime      @default(now())
+  updated_at            DateTime      @updatedAt
+
+  user               User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  tingkat_pendidikan TingkatPendidikan? @relation(fields: [tingkat_pendidikan_id], references: [id])
+  jurusan            Jurusan?           @relation(fields: [jurusan_id], references: [id])
+  instansi           Instansi?          @relation(fields: [instansi_id], references: [id])
+  formasi            Formasi?           @relation(fields: [formasi_id], references: [id])
+
+  @@index([instansi_id, formasi_id])
+  @@index([tingkat_pendidikan_id])
+  @@index([jurusan_id])
+  @@map("biodata_user")
+}
+
+// 23. laporan_soal
+model LaporanSoal {
+  id               Int           @id @default(autoincrement())
+  user_id          Int
+  soal_id          Int
+  jenis_laporan    JenisLaporan
+  deskripsi        String        @db.Text
+  bukti_screenshot String?       @db.VarChar(255)
+  status           StatusLaporan @default(PENDING)
+  reviewed_by      Int?
+  review_note      String?       @db.Text
+  reviewed_at      DateTime?
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+
+  user  User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  soal  Soal   @relation(fields: [soal_id], references: [id], onDelete: Cascade)
+  admin Admin? @relation(fields: [reviewed_by], references: [id])
+
+  @@index([soal_id, status])
+  @@index([user_id])
+  @@index([status])
+  @@map("laporan_soal")
 }
