@@ -1,0 +1,83 @@
+# ROADMAP IMPLEMENTASI BACKEND - CPNS TRAINING
+====================================================================
+File ini berisi urutan pengerjaan fitur berdasarkan skala prioritas 
+dan ketergantungan antar-tabel pada rancangan database.
+
+## STRUKTUR FOLDER YANG DISARANKAN (backend/src)
+--------------------------------------------------------------------
+src/
+ ├── config/       -> Konfigurasi utama (Env, Constants, Database)
+ ├── controllers/  -> Logika pengolahan request/response dari endpoint
+ ├── middlewares/  -> Filter request otomatis (Auth, Validasi Auth, Upload, Error)
+ ├── routes/       -> Endpoint mapping (Router) ke Controller
+ ├── services/     -> Logika bisnis utama, interaksi database dengan Prisma
+ ├── utils/        -> Fungsi template, Formatting, Helper, Multer Upload, dll
+ ├── lib/          -> Integrasi third-party loggers / Export module tunggal (prisma.ts)
+ └── types/        -> Definisi / Tambahan antarmuka TypeScript kustom
+
+====================================================================
+## ROADMAP PENGERJAAN BEDASARKAN FASE
+====================================================================
+
+FASE 1: PERSIAPAN FONDASI & SERVER UTAMA
+Deskripsi: Menyiapkan mesin server hidup dan dapat terhubung secara optimal.
+[ ] Setup struktur folder dasar sesuai arsitektur di atas.
+[ ] Setup App Express, Global Error Handler, & Route NotFound.
+[ ] Setup koneksi Prisma Client Single Instance.
+[ ] Konfigurasi Zod Middleware (Validasi Payload Body, Query, Parameters).
+[ ] Setup Multer untuk fitur Upload Gambar (Soal, Pembahasan, Bukti Laporan).
+
+FASE 2: AUTENTIKASI DAN OTORISASI (JWT)
+Deskripsi: Memastikan sistem Login dan Registrasi aman karena hampir semua entitas terikat pada ID User & Admin.
+[ ] Implementasi AuthService (Bcrypt password hashing, Sign JWT).
+[ ] Admin Auth (Login Super Admin & Admin).
+[ ] User Auth (Register, Login).
+[ ] Middleware Auth (Verify Token) dan Extract data User ke `req.user`.
+
+FASE 3: MANAJEMEN DATA MASTER & PESAING (AKSES ADMIN & READ-ONLY USER)
+Deskripsi: Setup tabel referensi yang tidak sering berubah namun wajib ada di awal.
+[ ] Kategori Soal (TIU, TWK, TKP, dll) - Admin CRUD.
+[ ] Jenis Soal (Silogisme, Verbal, Analogi) - Admin CRUD.
+[ ] Tingkat Pendidikan & Jurusan.
+[ ] Instansi & Formasi (Admin CRUD).
+[ ] Pengisian Setup: Endpoint update Profil & Biodata User.
+
+FASE 4: INTI BACKOFFICE (PEMBUATAN SOAL)
+Deskripsi: Membuat materi/bahan agar simulasi ujian bisa berjalan.
+[ ] Bank Soal - Admin buat "Wadah" soal.
+[ ] Paket Ujian - Mapping Wadah ke Ujian spesifik (Tipe Latihan, Peruntukan Premium/Free).
+[ ] Endpoint pembuatan Soal. Handle upload `pertanyaan_gambar` & `opsi_gambar`.
+[ ] Endpoint UjianSoal (Mapping urutan soal ke Paket Ujian) & Scoring Khusus (tkp_skor).
+
+FASE 5: CORE ENGINE - SIMULASI UJIAN (KRITIS)
+Deskripsi: Jantung utama aplikasi. Sangat sensitif, harus diuji secara menyeluruh.
+[ ] Endpoint `Mulai Ujian`: Generate / inisialisasi `SesiUjian` & record di `HasilUjian`.
+[ ] Endpoint `Heartbeat / Sync Waktu`: Sinkronisasi "sisa_waktu_detik" user dengan server.
+[ ] Endpoint `Simpan Jawaban`: Menyimpan pilihan A/B/C/D/E ke tabel `jawaban_ujian`. Status harus real-time (apakah Ragu, atau Kosong).
+[ ] Logika pemutusan ujian otomatis (Jika heartbeat timeout lebih dari batasan waktu wajar yang dikonfigurasi).
+
+FASE 6: FINALISASI & KALKULASI SKOR (POST-EXAM)
+Deskripsi: Apa yang terjadi jika timer habis / user klik selesai.
+[ ] Endpoint `Akhiri Ujian / Submit`.
+[ ] Logika Trigger Penghitungan Skor Otomatis (`skor_tiu`, `twk`, `tkp`) dari total `jawaban_ujian`.
+[ ] Update Profiling: Perbarui akumulasi StatistikUserKategori & StatistikUserJenis.
+
+FASE 7: FITUR SOSIAL & PELAPORAN
+Deskripsi: Interaksi user memelihara kualitas aplikasi.
+[ ] Endpoint `Kirim Laporan Soal` - Tangkap komplain (typo, bukti_screenshot).
+[ ] Dashboard Admin: Review Laporan Soal + Ganti status Laporan.
+[ ] Endpoint `Kirim Kontribusi Soal` - Menyaring User yang membuat soal mandiri.
+[ ] Dashboard Admin: Approval / Reject untuk soal kontributor. Jika Approve, otomatis copy menjadi tabel `Soal`.
+
+FASE 8: KOMPETISI & LEADERBOARDS
+Deskripsi: Fitur pamungkas membandingkan skor user.
+[ ] Endpoint Leaderboard Global.
+[ ] Endpoint Leaderboard "Pesaing Formasi" (Query ranking dari `BiodataUser` (instansi + formasi sama) bandingkan agregat `HasilUjian` tertinggi).
+
+====================================================================
+## CATATAN PENTING & SARAN PRAKTIS (BEST PRACTICES)
+====================================================================
+1. HATI-HATI PADA FASE 5 (ENGINE UJIAN): Jangan pernah meletakan state "Berapa lama waktu tersisa" hanya di Frontend/Browser karena mudah diretas. Selalu validasi waktu mulai & durasi ujian berpedoman ke backend timestamp.
+2. PAGINASI: Gunakan Prisma `skip` & `take`, manfaatkan utilitas pagination yang standar di setiap request get List/Index (Master Data, History, dll).
+3. ISOLATE DATABASE IMAGE: Gambar soal di folder `uploads/...` sebaiknya dikonfigurasikan agar dapat disajikan secara statis (`app.use('/static', express.static(...))`).
+4. SOFT DELETE: Kolom is_active digunakan untuk Soft Deletion, ini menjaga history hasil ujian agar tidak error Foreign Key apabila suatu waktu admin menonaktifkan Soal tertentu.
