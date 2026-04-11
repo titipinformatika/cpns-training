@@ -1,0 +1,227 @@
+# RANCANGAN DATABASE CPNS TRAINING
+Di-generate ulang dari `backend/prisma/schema.prisma`
+
+## DAFTAR ENUMERATION
+
+1. **UserKategori**: FREE, PREMIUM
+2. **AdminRole**: SUPER_ADMIN, ADMIN
+3. **UserKategoriAccess**: FREE, PREMIUM, ALL
+4. **LevelSoal**: MUDAH, SEDANG, SULIT, HOST
+5. **JawabanOpsi**: A, B, C, D, E
+6. **StatusKontribusi**: PENDING, APPROVED, REJECTED
+7. **TipeUjian**: TRYOUT, LATIHAN, QUIZ
+8. **PeruntukanUjian**: FREE, PREMIUM, ALL
+9. **StatusHasilUjian**: BERLANGSUNG, SELESAI, TIMEOUT
+10. **TingkatPenguasaan**: BELUM, RENDAH, SEDANG, TINGGI, MAHIR
+11. **StatusSesi**: AKTIF, TERPUTUS, DILANJUTKAN, SELESAI
+12. **JenisInstansi**: KEMENTERIAN, LEMBAGA, PEMDA, LAINNYA
+13. **JenisKelamin**: LAKI_LAKI, PEREMPUAN
+14. **JenisLaporan**: JAWABAN_SALAH, SOAL_SALAH, TYPO, PEMBAHASAN_SALAH, GAMBAR_RUSAK, DUPLIKAT, LAINNYA
+15. **StatusLaporan**: PENDING, DITINJAU, DIPERBAIKI, DITOLAK
+
+---
+
+## DAFTAR TABEL (23 Tabel Utama)
+
+### MANAJEMEN AKUN & AKSES
+
+**1. users**
+- id (PK, Int)
+- nama (String 100)
+- email (String 150, Unique)
+- password (String 255)
+- kategori (Enum UserKategori, Default: FREE)
+- avatar (String 255, Nullable)
+- is_active (Boolean, Default: true)
+- created_at, updated_at
+
+**2. admins**
+- id (PK, Int)
+- nama (String 100)
+- email (String 150, Unique)
+- password (String 255)
+- role (Enum AdminRole, Default: ADMIN)
+- is_active (Boolean, Default: true)
+- created_at, updated_at
+
+**3. menus**
+- id (PK, Int)
+- nama (String 100)
+- url (String 255, Nullable)
+- icon (String 100, Nullable)
+- parent_id (FK to menus)
+- urutan (Int, Default: 0)
+- is_active (Boolean, Default: true)
+- created_by (FK to admins)
+- created_at, updated_at
+
+**4. menu_access**
+- id (PK, Int)
+- menu_id (FK to menus)
+- user_kategori (Enum UserKategoriAccess)
+- is_allowed (Boolean, Default: true)
+- created_at, updated_at
+
+
+### MASTER SOAL & BANK SOAL
+
+**5. kategori_soal** (Contoh: TIU, TWK, TKP)
+- id (PK, Int)
+- kode (String 10, Unique)
+- nama (String 100)
+- deskripsi (Text, Nullable)
+- passing_grade (Float, Default: 0)
+- created_at, updated_at
+
+**6. jenis_soal** (Contoh: Verbal, Numerik, Nasionalisme)
+- id (PK, Int)
+- kategori_soal_id (FK to kategori_soal)
+- nama (String 100)
+- deskripsi (Text, Nullable)
+- created_at
+
+**7. bank_soal** (Wadah soal-soal)
+- id (PK, Int)
+- nama (String 200)
+- deskripsi (Text, Nullable)
+- is_active (Boolean, Default: true)
+- created_by (FK to admins)
+- created_at, updated_at
+
+**8. soal**
+- id (PK, Int)
+- bank_soal_id (FK to bank_soal)
+- kategori_soal_id (FK to kategori_soal)
+- jenis_soal_id (FK to jenis_soal)
+- level (Enum LevelSoal)
+- pertanyaan (Text, Nullable)
+- pertanyaan_gambar (String 255, Nullable) - Untuk support upload gambar tipe .jpg
+- opsi_a, opsi_b, opsi_c, opsi_d, opsi_e (Text, Nullable)
+- opsi_a_gambar, opsi_b_gambar, opsi_c_gambar, opsi_d_gambar, opsi_e_gambar (String 255, Nullable)
+- jawaban_benar (Enum JawabanOpsi, Nullable)
+- pembahasan (Text, Nullable)
+- pembahasan_gambar (String 255, Nullable)
+- is_active (Boolean, Default: true)
+- created_by_admin (FK to admins, Nullable)
+- created_at, updated_at
+
+**9. kontribusi_soal**
+- Mirip seperti struktur tabel `soal` namun berisi kolom untuk di-review.
+- user_id (FK to users)
+- status (Enum StatusKontribusi, Default: PENDING)
+- reviewed_by (FK to admins, Nullable)
+- review_note (Text, Nullable)
+- soal_id (FK to soal, Nullable, jika di-approve dan dijadikan soal resmi)
+
+
+### UJIAN & SESI ENGINE
+
+**10. ujian** (Paket Ujian / Tryout)
+- id (PK, Int)
+- nama (String 200)
+- deskripsi (Text, Nullable)
+- durasi_menit (Int)
+- bank_soal_id (FK to bank_soal)
+- tipe (Enum TipeUjian)
+- peruntukan (Enum PeruntukanUjian)
+- is_active (Boolean, Default: true)
+- created_by (FK to admins)
+- created_at, updated_at
+
+**11. ujian_soal** (Mapping Soal ke Ujian dengan Skoring)
+- id (PK, Int)
+- ujian_id (FK to ujian)
+- soal_id (FK to soal)
+- nomor_urut (Int)
+- skor (Int, Default: 5)
+- created_at, updated_at
+
+**12. ujian_soal_skor_tkp** (Metode Scoring TKP 1-5)
+- id (PK, Int)
+- ujian_soal_id (FK to ujian_soal, Unique)
+- skor_a, skor_b, skor_c, skor_d, skor_e (Int, Default: 1 s.d 5)
+
+**13. hasil_ujian** (Leaderboard & Final Report)
+- id (PK, Int)
+- user_id (FK to users)
+- ujian_id (FK to ujian)
+- percobaan_ke (Int, Default: 1)
+- total_soal, jumlah_dijawab, jumlah_benar, jumlah_salah, jumlah_kosong (Int)
+- skor_tiu, skor_twk, skor_tkp, skor_total (Float)
+- is_lulus (Boolean, Default: false)
+- status (Enum StatusHasilUjian, Default: BERLANGSUNG)
+- waktu_mulai (DateTime)
+- waktu_selesai (DateTime, Nullable)
+- durasi_detik (Int)
+
+**14. jawaban_ujian**
+- id (PK, Int)
+- hasil_ujian_id (FK to hasil_ujian)
+- ujian_soal_id (FK to ujian_soal)
+- jawaban_user (Enum JawabanOpsi, Nullable)
+- is_benar (Boolean, Nullable)
+- skor_diperoleh (Float)
+- waktu_jawab_detik (Int)
+- is_ragu (Boolean)
+- created_at, updated_at
+
+**17. sesi_ujian** (Engine Recovery / Heartbeat)
+- id (PK, Int)
+- hasil_ujian_id (FK to hasil_ujian, Unique)
+- user_id (FK to users)
+- ujian_id (FK to ujian)
+- nomor_soal_terakhir (Int)
+- sisa_waktu_detik (Int)
+- total_terjawab, total_belum_jawab, total_ragu (Int)
+- status_sesi (Enum StatusSesi, Default: AKTIF)
+- last_heartbeat (DateTime)
+- ip_address, user_agent, jumlah_resume
+
+
+### STATISTIK (PROFILING KOMPETENSI)
+
+**15. statistik_user_kategori**
+- user_id, kategori_soal_id (FK)
+- total_soal_dijawab, total_benar, total_salah, total_skor
+- skor_tertinggi, skor_terendah, skor_rata_rata, persentase_benar, total_ujian
+
+**16. statistik_user_jenis**
+- user_id, jenis_soal_id (FK)
+- total_soal_dijawab, total_benar, total_salah
+- skor_rata_rata, persentase_benar
+- tingkat_penguasaan (Enum TingkatPenguasaan)
+
+
+### PETA PESAING (COMPETITOR ANALYSIS)
+
+**18. tingkat_pendidikan** (Master)
+- id, nama, urutan
+
+**19. jurusan** (Master)
+- id, nama, rumpun
+
+**20. instansi** (Master)
+- id, nama, singkatan, jenis (Enum JenisInstansi), logo
+
+**21. formasi** (Jabatan / Lowongan)
+- id, instansi_id (FK to instansi)
+- nama_jabatan, kualifikasi_pendidikan, jumlah_formasi, lokasi_penempatan
+
+**22. biodata_user**
+- id, user_id (Unique, FK to users)
+- nama_lengkap, no_hp, dll
+- tingkat_pendidikan_id, jurusan_id, instansi_id, formasi_id (FK ke master pesaing)
+
+
+### PELAPORAN SOAL
+
+**23. laporan_soal**
+- id (PK, Int)
+- user_id (FK to users)
+- soal_id (FK to soal)
+- jenis_laporan (Enum JenisLaporan)
+- deskripsi (Text)
+- bukti_screenshot (String 255, Nullable)
+- status (Enum StatusLaporan, Default: PENDING)
+- reviewed_by (FK to admins)
+- review_note, reviewed_at
