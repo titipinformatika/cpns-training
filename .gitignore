@@ -1,5 +1,7 @@
 command_git.text
 prompt.txt
+issue.md
+.gitignore
 
 # Node modules
 node_modules/
