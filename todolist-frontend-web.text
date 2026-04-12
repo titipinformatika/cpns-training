@@ -1,0 +1,636 @@
+================================================================================
+ TODOLIST INTEGRASI FRONTEND-WEB DENGAN BACKEND API
+ CPNS Training Platform
+ Generated: 2026-04-12 (Revisi Lengkap dari Analisa Backend)
+================================================================================
+
+=== ANALISA KONDISI FRONTEND SAAT INI ===
+
+Tech Stack:
+  - Vite 8
+  - React 19 + TypeScript 6
+  - React Router DOM 7
+  - Axios (HTTP Client)
+  - TailwindCSS 4
+
+Status Saat Ini:
+  - Fase 0 (Setup Fondasi) SUDAH SELESAI dikerjakan.
+  - File yang sudah ada:
+    ✅ vite.config.ts     → Proxy /api dan /static ke localhost:3000
+    ✅ src/api/axios.ts    → Axios Instance + JWT Interceptor
+    ✅ src/types/index.ts  → TypeScript Interfaces (partial)
+    ✅ src/contexts/AuthContext.tsx → Global Auth State
+    ✅ src/routes/index.tsx → Public/PrivateRoute + routing dasar
+    ✅ src/utils/format.ts  → formatTanggal, formatDurasi, formatAngka
+    ✅ src/utils/constants.ts → TIPE_UJIAN_LABELS, STATUS_COLORS
+    ✅ src/main.tsx         → BrowserRouter + AuthProvider + Toaster
+    ✅ src/App.tsx           → AppRoutes wrapper
+
+Backend Base URL: http://localhost:3000/api
+Static Files URL: http://localhost:3000/static/<path>
+
+PENTING — CARA MENJALANKAN:
+  1. Buka terminal di folder backend:  npm run dev  (jalan di port 3000)
+  2. Buka terminal di folder frontend-web:  npm run dev  (jalan di port 5173)
+  3. Pastikan database MySQL aktif dan sudah di-seed (npm run seed di folder backend)
+
+Format Response API (BERLAKU UNTUK SEMUA ENDPOINT):
+  Sukses:   { success: true,  message: "...", data: { ... } }
+  Error:    { success: false, message: "...", errors?: { ... } }
+  Paginasi: { success: true,  message: "...", data: [...], meta: { page, limit, total, totalPages } }
+
+Autentikasi: Bearer Token di Header
+  Authorization: Bearer <accessToken>
+  401 = token invalid/expired → interceptor otomatis refresh
+  429 = rate limited → tampilkan pesan "Terlalu banyak percobaan"
+
+
+================================================================================
+FASE 0: SETUP FONDASI PROJECT  ✅ SUDAH SELESAI
+================================================================================
+
+[x] 0.1 - Vite Proxy → sudah di vite.config.ts
+[x] 0.2 - Struktur Folder → api/, contexts/, routes/, types/, utils/, pages/, components/
+[x] 0.3 - Dependencies → react-hook-form, zod, @hookform/resolvers, react-hot-toast, recharts, clsx, date-fns
+[x] 0.4 - Axios Instance → src/api/axios.ts (JWT interceptor + auto refresh)
+[x] 0.5 - TypeScript Types → src/types/index.ts
+[x] 0.6 - AuthContext → src/contexts/AuthContext.tsx
+[x] 0.7 - Utility Functions → src/utils/format.ts + constants.ts
+[x] 0.8 - React Router → src/routes/index.tsx (PublicRoute, PrivateRoute)
+
+
+================================================================================
+FASE 1: AUTENTIKASI (LOGIN, REGISTER, GANTI PASSWORD)
+================================================================================
+
+Dokumentasi API:
+
+  1. POST /api/auth/register
+     Auth: TIDAK PERLU
+     Body: { nama: string(3-100), email: string(email), password: string(6-100) }
+     Sukses 201: { data: { id, nama, email, kategori, created_at } }
+     Error 409: "Email sudah terdaftar"
+
+  2. POST /api/auth/login
+     Auth: TIDAK PERLU
+     Body: { email: string, password: string }
+     Sukses 200: { data: { user: {id,nama,email,kategori}, accessToken, refreshToken } }
+     Error 401: "Email atau password salah"
+     Error 403: "Akun Anda telah dinonaktifkan"
+
+  3. POST /api/auth/refresh-token
+     Auth: TIDAK PERLU (kirim refreshToken di body)
+     Body: { refreshToken: string }
+     Sukses 200: { data: { accessToken: "..." } }
+     Note: Sudah auto-handle oleh axios interceptor
+
+  4. GET /api/auth/me
+     Auth: WAJIB token
+     Sukses 200: { data: { id, nama, email, kategori, avatar, is_active, created_at } }
+
+  5. PUT /api/auth/change-password
+     Auth: WAJIB token
+     Body: { old_password: string, new_password: string(6-100) }
+     Sukses 200: { data: null, message: "Password berhasil diubah" }
+     Error 401: "Password lama tidak cocok"
+
+-----
+
+[ ] 1.1 - Buat API Service: src/api/auth.ts
+    ```ts
+    import api from './axios';
+    import type { ApiResponse, LoginResponse, User } from '../types';
+
+    export const authApi = {
+      register: (data: { nama: string; email: string; password: string }) =>
+        api.post<ApiResponse<User>>('/auth/register', data),
+      login: (data: { email: string; password: string }) =>
+        api.post<ApiResponse<LoginResponse>>('/auth/login', data),
+      getMe: () => api.get<ApiResponse<User>>('/auth/me'),
+      changePassword: (data: { old_password: string; new_password: string }) =>
+        api.put<ApiResponse<null>>('/auth/change-password', data),
+    };
+    ```
+
+[ ] 1.2 - Halaman Register: src/pages/auth/RegisterPage.tsx
+    Fields: Nama, Email, Password, Konfirmasi Password
+    - Validasi client: konfirmasi password harus cocok (backend TIDAK cek ini)
+    - Tombol disable saat loading
+    - Sukses → redirect /login + toast "Registrasi berhasil"
+    - Link "Sudah punya akun? Login"
+
+[ ] 1.3 - Halaman Login: src/pages/auth/LoginPage.tsx
+    Fields: Email, Password
+    - Panggil context.login() → simpan token + redirect /dashboard
+    - Error → tampilkan "Email atau password salah"
+    - Tombol toggle show/hide password
+    - Link "Belum punya akun? Daftar"
+
+[ ] 1.4 - Halaman Ganti Password: src/pages/profil/ChangePasswordPage.tsx
+    Fields: Password Lama, Password Baru, Konfirmasi Password Baru
+    - Validasi: min 6 karakter, konfirmasi cocok
+    - Sukses → toast + redirect /profil
+
+
+================================================================================
+FASE 2: MASTER DATA (PUBLIC, tanpa login)
+================================================================================
+
+Endpoint (SEMUA GET, tanpa token):
+  1. GET /api/master/kategori      → [{ id, kode, nama, deskripsi, passing_grade }]
+  2. GET /api/master/jenis-soal    → [{ id, kategori_soal_id, nama, deskripsi }]
+     Query opsional: ?kategori_id=1
+  3. GET /api/master/pendidikan    → [{ id, nama, urutan }]
+  4. GET /api/master/jurusan       → [{ id, nama, rumpun }]
+     Query opsional: ?search=teknik (max 100 hasil)
+  5. GET /api/master/instansi      → [{ id, nama, singkatan, jenis }]
+  6. GET /api/master/formasi       → [{ id, nama_jabatan, kualifikasi_pendidikan, jumlah_formasi, lokasi_penempatan, gaji_min, gaji_max }]
+     Query opsional: ?instansi_id=5
+
+-----
+
+[ ] 2.1 - Buat API Service: src/api/master.ts
+    ```ts
+    import api from './axios';
+    export const masterApi = {
+      getKategori: () => api.get('/master/kategori'),
+      getJenisSoal: (kategoriId?: number) =>
+        api.get('/master/jenis-soal', { params: { kategori_id: kategoriId } }),
+      getPendidikan: () => api.get('/master/pendidikan'),
+      getJurusan: (search?: string) =>
+        api.get('/master/jurusan', { params: { search } }),
+      getInstansi: () => api.get('/master/instansi'),
+      getFormasi: (instansiId?: number) =>
+        api.get('/master/formasi', { params: { instansi_id: instansiId } }),
+    };
+    ```
+
+[ ] 2.2 - Buat komponen SearchableDropdown untuk Jurusan
+    User ketik → debounce 300ms → panggil getJurusan(search)
+
+
+================================================================================
+FASE 3: PROFIL USER & BIODATA
+================================================================================
+
+Dokumentasi API:
+  1. GET /api/user/biodata
+     Auth: WAJIB token
+     Sukses: { data: { id, user_id, nama_lengkap, no_hp, tanggal_lahir, jenis_kelamin,
+               alamat, provinsi, kota, tingkat_pendidikan_id, jurusan_id, nama_universitas,
+               tahun_lulus, instansi_id, formasi_id,
+               tingkat_pendidikan: {nama}, jurusan: {nama}, instansi: {nama}, formasi: {nama_jabatan} } }
+     Jika belum diisi: { data: null, message: "Biodata belum diisi" }
+
+  2. PUT /api/user/biodata
+     Auth: WAJIB token
+     Body (semua field optional & nullable):
+       nama_lengkap: string(max150), no_hp: string(max20),
+       tanggal_lahir: ISO datetime string,
+       jenis_kelamin: "LAKI_LAKI" | "PEREMPUAN",
+       alamat: string, provinsi: string(max100), kota: string(max100),
+       tingkat_pendidikan_id: number, jurusan_id: number,
+       nama_universitas: string(max200), tahun_lulus: number,
+       instansi_id: number, formasi_id: number
+     Note: Endpoint ini bersifat UPSERT (create jika belum ada, update jika sudah ada)
+
+-----
+
+[ ] 3.1 - Buat API Service: src/api/user.ts
+    ```ts
+    import api from './axios';
+    export const userApi = {
+      getBiodata: () => api.get('/user/biodata'),
+      upsertBiodata: (data: any) => api.put('/user/biodata', data),
+      getRiwayatUjian: (params?: { page?: number; limit?: number }) =>
+        api.get('/user/riwayat-ujian', { params }),
+      getRiwayatDetail: (id: number) => api.get(`/user/riwayat-ujian/${id}`),
+      getStatistik: () => api.get('/user/statistik'),
+      getKontribusiSaya: (params?: { page?: number }) =>
+        api.get('/user/kontribusi-soal', { params }),
+      getLaporanSaya: (params?: { page?: number }) =>
+        api.get('/user/laporan-soal', { params }),
+    };
+    ```
+
+[ ] 3.2 - Halaman Profil: src/pages/profil/ProfilPage.tsx
+    - Tampilkan data user (GET /auth/me) + biodata (GET /user/biodata)
+    - Jika biodata null → tampilkan pesan "Lengkapi biodata Anda"
+    - Tombol: Edit Biodata, Ganti Password
+
+[ ] 3.3 - Halaman Edit Biodata: src/pages/profil/EditBiodataPage.tsx
+    POLA CASCADE DROPDOWN (penting!):
+    1. User pilih Instansi → load formasi: GET /master/formasi?instansi_id=X
+    2. Formasi dropdown BARU muncul setelah instansi dipilih
+    3. Jika instansi berubah → reset pilihan Formasi
+
+
+================================================================================
+FASE 4: DAFTAR UJIAN & SIMULASI UJIAN
+================================================================================
+
+Dokumentasi API:
+
+  1. GET /api/ujian
+     Auth: WAJIB token
+     Query: ?page=1&limit=10&tipe=TRYOUT
+     Sukses: { data: [{ id, nama, deskripsi, durasi_menit, tipe, peruntukan, is_active, _count: {ujian_soal} }], meta }
+
+  2. GET /api/ujian/:id
+     Auth: WAJIB token
+     Sukses: { data: { id, nama, deskripsi, durasi_menit, tipe, peruntukan, ... } }
+
+  3. POST /api/ujian/simulasi/mulai
+     Auth: WAJIB token
+     Body: { ujian_id: number }
+     Sukses 200: { data: { hasil_ujian_id, sesi_ujian_id, sisa_waktu_detik, total_soal, soal_list: [...] } }
+     Error 400: "Masih ada ujian yang berlangsung" / "Ujian Premium, upgrade akun"
+     soal_list berisi: { ujian_soal_id, nomor_urut, pertanyaan, pertanyaan_gambar,
+                         opsi_a, opsi_a_gambar, ..., opsi_e, opsi_e_gambar,
+                         kategori_soal: {kode, nama} }
+
+  4. POST /api/ujian/simulasi/heartbeat
+     Auth: WAJIB token
+     Body: { hasil_ujian_id: number }
+     Sukses: { data: { sisa_waktu_detik, status: "AKTIF"|"TIMEOUT" } }
+     PENTING: Kirim setiap 30 detik. Jika tidak heartbeat 120 detik → auto TIMEOUT
+
+  5. POST /api/ujian/simulasi/jawab
+     Auth: WAJIB token
+     Body: { hasil_ujian_id, ujian_soal_id, jawaban: "A"|"B"|"C"|"D"|"E"|null, is_ragu: boolean }
+     Sukses: { data: { ujian_soal_id, jawaban_user, is_ragu, totalTerjawab, totalBelumJawab, totalRagu } }
+
+  6. POST /api/ujian/simulasi/selesai
+     Auth: WAJIB token
+     Body: { hasil_ujian_id: number }
+     Sukses: { data: { hasil_ujian_id, status, waktu_mulai, waktu_selesai, durasi_pengerjaan_detik,
+               total_soal, jumlah_dijawab, jumlah_benar, jumlah_salah, jumlah_kosong,
+               skor_tiu, skor_twk, skor_tkp, skor_total, is_lulus,
+               detail_kategori: [{ kode, nama, skor, passing_grade, lulus }] } }
+
+-----
+
+[ ] 4.1 - Buat API Service: src/api/ujian.ts
+
+[ ] 4.2 - Halaman Daftar Ujian: src/pages/ujian/DaftarUjianPage.tsx
+    - Kartu: nama, deskripsi, tipe, jumlah soal, durasi
+    - Badge "PREMIUM" (warna gold) untuk ujian Premium
+    - Jika user FREE dan ujian PREMIUM → tombol dikunci
+    - Tab filter: Semua / TRYOUT / LATIHAN / QUIZ
+
+[ ] 4.3 - Halaman Detail Ujian (sebelum mulai): src/pages/ujian/DetailUjianPage.tsx
+    - Info lengkap: nama, deskripsi, durasi, jumlah soal
+    - Tombol "Mulai Ujian" → ConfirmDialog → POST /simulasi/mulai → navigasi ke simulasi
+
+[ ] 4.4 - Halaman Simulasi Ujian: src/pages/ujian/SimulasiUjianPage.tsx
+    *** INI HALAMAN PALING KOMPLEKS ***
+
+    LAYOUT:
+    ┌──────────────────────────────────────────────┐
+    │ [Timer 01:23:45]        [Soal 3/100]  [🚪]  │
+    ├──────────────────────────────────────────────┤
+    │  [Pertanyaan / gambar pertanyaan]            │
+    │  ○ A. [opsi_a / gambar_a]                    │
+    │  ● B. [opsi_b / gambar_b]  ← dipilih        │
+    │  ○ C. - E. ...                               │
+    │  [☐ Tandai Ragu]                             │
+    │  [◀ Sebelumnya]  [Selanjutnya ▶]            │
+    ├──────────────────────────────────────────────┤
+    │ Panel Nomor: [1][2][3]... 🟢=dijawab 🟡=ragu│
+    │ [Selesai Ujian]                              │
+    └──────────────────────────────────────────────┘
+
+    FITUR WAJIB:
+    - Timer countdown (berkurang per detik, warning di 5 menit & 1 menit)
+    - Heartbeat setiap 30 detik (POST /heartbeat)
+    - Auto-simpan jawaban saat pindah soal (POST /jawab)
+    - Panel nomor soal (klik untuk jump ke soal tertentu)
+    - Tombol ragu-ragu per soal
+    - Gambar soal: <img src={`/static/${pertanyaan_gambar}`} />
+    - Backup jawaban ke sessionStorage (anti-refresh)
+    - Selesai: ConfirmDialog → POST /selesai → navigasi ke hasil
+
+[ ] 4.5 - Halaman Hasil Ujian: src/pages/ujian/HasilUjianPage.tsx
+    - Skor total (besar, jelas), status LULUS/TIDAK LULUS
+    - Tabel per kategori: | Kategori | Skor | Passing Grade | Status |
+    - Statistik: benar/salah/kosong, durasi pengerjaan
+    - Tombol: Lihat Pembahasan, Kembali ke Daftar
+
+
+================================================================================
+FASE 5: DASHBOARD & RIWAYAT USER
+================================================================================
+
+Dokumentasi API:
+  1. GET /api/user/statistik
+     Auth: WAJIB token
+     Sukses: { data: {
+       statsKategori: [{ kategori_soal: {kode,nama}, total_dikerjakan, total_benar, total_salah, skor_rata_rata }],
+       statsJenis: [{ jenis_soal: {nama}, total_dikerjakan, total_benar, persen_benar, tingkat_penguasaan }]
+     } }
+
+  2. GET /api/user/riwayat-ujian
+     Auth: WAJIB token
+     Query: ?page=1&limit=10
+     Sukses: { data: [{ id, ujian_id, percobaan_ke, skor_total, is_lulus, status, waktu_mulai, durasi_detik, ujian: {nama,tipe} }], meta }
+
+  3. GET /api/user/riwayat-ujian/:id
+     Auth: WAJIB token
+     Sukses: { data: { ... detail + jawaban_ujian: [{ ujian_soal: { soal: { pertanyaan, jawaban_benar, pembahasan, ... } } }] } }
+
+-----
+
+[ ] 5.1 - Halaman Dashboard: src/pages/dashboard/DashboardPage.tsx
+    - Sapaan: "Selamat datang, {nama}!"
+    - Kartu ringkasan: Total Ujian, Rata-rata Skor, % Lulus
+    - Grafik skor per kategori (gunakan recharts)
+    - Penguasaan per jenis soal (progress bar)
+    - Shortcut: Mulai Ujian, Riwayat, Leaderboard
+
+[ ] 5.2 - Halaman Riwayat Ujian: src/pages/dashboard/RiwayatUjianPage.tsx
+    - Tabel paginated: Nama Ujian, Tipe, Skor, Status, Tanggal
+    - Klik baris → detail riwayat
+
+[ ] 5.3 - Halaman Detail Riwayat: src/pages/dashboard/DetailRiwayatPage.tsx
+    - Tampilkan setiap soal + jawaban user + jawaban benar + pembahasan
+    - Warna: hijau=benar, merah=salah, abu=kosong
+    - Tombol "Laporkan Soal" di setiap soal (buka modal laporan)
+
+
+================================================================================
+FASE 6: FITUR SOSIAL (LAPORAN & KONTRIBUSI SOAL)
+================================================================================
+
+Dokumentasi API:
+
+  1. POST /api/laporan-soal
+     Auth: WAJIB token
+     Content-Type: multipart/form-data
+     Fields: soal_id (number), jenis_laporan (enum), deskripsi (string min10)
+     File (opsional): bukti_screenshot (max 2MB, jpg/jpeg saja)
+     jenis_laporan values: JAWABAN_SALAH, SOAL_SALAH, TYPO, PEMBAHASAN_SALAH,
+                           GAMBAR_RUSAK, DUPLIKAT, LAINNYA
+
+  2. POST /api/kontribusi-soal
+     Auth: WAJIB token
+     Content-Type: multipart/form-data
+     Fields: kategori_soal_id, jenis_soal_id, level (MUDAH/SEDANG/SULIT/HOST),
+             pertanyaan (min5), opsi_a-e (min1 each), jawaban_benar (A-E), pembahasan?
+     Files (opsional, max 2MB each): pertanyaan_gambar, opsi_a_gambar, ..., opsi_e_gambar, pembahasan_gambar
+
+  3. GET /api/user/kontribusi-soal    → paginated, riwayat kontribusi saya
+  4. GET /api/user/laporan-soal       → paginated, riwayat laporan saya
+
+PENTING UPLOAD FILE:
+  - Gunakan FormData, BUKAN JSON
+  - Jangan set Content-Type header manual, biar browser isi otomatis
+  - Max 2MB, format .jpg .jpeg saja (dari backend constants)
+
+-----
+
+[ ] 6.1 - Buat API Service: src/api/sosial.ts
+[ ] 6.2 - Modal Laporan Soal: src/components/LaporanSoalModal.tsx
+    - Dropdown jenis_laporan, textarea deskripsi, input file screenshot
+[ ] 6.3 - Halaman Kontribusi Soal: src/pages/sosial/KontribusiSoalPage.tsx
+    - Form lengkap: pilih kategori, jenis, level, isi pertanyaan, 5 opsi, jawaban benar
+    - Upload gambar per field (opsional)
+[ ] 6.4 - Halaman Riwayat Kontribusi: src/pages/sosial/RiwayatKontribusiPage.tsx
+[ ] 6.5 - Halaman Riwayat Laporan: src/pages/sosial/RiwayatLaporanPage.tsx
+
+
+================================================================================
+FASE 7: LEADERBOARD
+================================================================================
+
+Dokumentasi API:
+  1. GET /api/leaderboard/global?ujian_id=1&page=1&limit=10
+     Auth: WAJIB token
+     WAJIB: parameter ujian_id (pilih ujian dulu!)
+     Sukses: { data: [{ ranking, user_id, skor_total, skor_tiu, skor_twk, skor_tkp,
+               is_lulus, durasi_detik, waktu_selesai,
+               user: { id, biodata: { nama_lengkap } } }], meta }
+
+  2. GET /api/leaderboard/formasi?ujian_id=1&page=1&limit=10
+     Auth: WAJIB token
+     WAJIB: parameter ujian_id
+     WAJIB: user harus punya biodata lengkap (instansi + formasi)
+     Jika biodata belum lengkap → 400: "Lengkapi biodata (Instansi & Formasi) terlebih dahulu"
+     Sukses: { data: { instansi, formasi, rankings: [...], meta } }
+
+-----
+
+[ ] 7.1 - Buat API Service: src/api/leaderboard.ts
+[ ] 7.2 - Halaman Leaderboard: src/pages/leaderboard/LeaderboardPage.tsx
+    - Dropdown pilih ujian (WAJIB, dari GET /api/ujian)
+    - Tab: Global | Pesaing Formasi
+    - Tab "Pesaing Formasi": jika biodata tidak lengkap → pesan + link /profil/edit
+    - Highlight baris user sendiri
+
+
+================================================================================
+FASE 8: LAYOUT, NAVIGASI & KOMPONEN UI
+================================================================================
+
+[ ] 8.1 - Layout Utama: src/components/layout/MainLayout.tsx
+    Navbar: Logo | Dashboard | Ujian | Leaderboard | Kontribusi | [User Menu ▼]
+    User Menu: Profil, Ganti Password, Logout
+    Mobile: hamburger menu
+    Footer: © 2026 CPNS Training
+
+[ ] 8.2 - Setup Routing Lengkap: src/routes/index.tsx
+    /                          → Redirect ke /dashboard
+    /login                     → LoginPage (public only)
+    /register                  → RegisterPage (public only)
+    /dashboard                 → DashboardPage (+ MainLayout)
+    /profil                    → ProfilPage
+    /profil/edit               → EditBiodataPage
+    /profil/password           → ChangePasswordPage
+    /ujian                     → DaftarUjianPage
+    /ujian/:id                 → DetailUjianPage
+    /ujian/simulasi/:id        → SimulasiUjianPage (TANPA layout/navbar!)
+    /ujian/hasil/:id           → HasilUjianPage
+    /riwayat                   → RiwayatUjianPage
+    /riwayat/:id               → DetailRiwayatPage
+    /leaderboard               → LeaderboardPage
+    /kontribusi                → KontribusiSoalPage
+    /kontribusi/riwayat        → RiwayatKontribusiPage
+    /laporan/riwayat           → RiwayatLaporanPage
+    *                          → NotFoundPage (404)
+
+    PENTING: SimulasiUjianPage TANPA layout/navbar agar user fokus dan tidak navigasi keluar.
+
+[ ] 8.3 - Komponen UI Reusable (buat di awal!)
+    - LoadingSpinner: animasi loading
+    - EmptyState: "Belum ada data"
+    - ConfirmDialog: modal konfirmasi Yes/No
+    - Pagination: navigasi halaman (← 1 2 3 ... →)
+    - Badge: label berwarna (LULUS/GAGAL, FREE/PREMIUM, PENDING, dll)
+    - Card: kotak dengan shadow
+    - DataTable: tabel dengan loading state
+
+[ ] 8.4 - Halaman 404: src/pages/NotFoundPage.tsx
+
+
+================================================================================
+FASE 9: POLISH & UX
+================================================================================
+
+[ ] 9.1 - Loading State & Error Handling di Setiap Halaman
+    Pola wajib:
+    - State: loading, error, data
+    - Loading → tampilkan spinner
+    - Error → tampilkan pesan + tombol retry
+    - 429 → "Terlalu banyak percobaan"
+    - 500 → "Terjadi masalah di server"
+    - Network error → "Tidak ada koneksi"
+
+[ ] 9.2 - Form Validation (Client-Side)
+    Gunakan react-hook-form + zodResolver
+    Matching validasi backend: Nama min 3, Password min 6, Email format, dll
+
+[ ] 9.3 - Timer Ujian (Detail)
+    - Warning 5 menit terakhir
+    - Warning 1 menit terakhir (warna merah berkedip)
+    - Auto-submit jika waktu habis
+
+[ ] 9.4 - Backup Jawaban ke sessionStorage
+    Simpan setiap kali jawaban berubah, load kembali jika halaman di-refresh
+
+[ ] 9.5 - Responsive & Mobile
+    - Test viewport 375px (iPhone SE)
+    - Panel nomor soal di mobile → horizontal scroll
+    - Tabel panjang → horizontal scroll
+
+[ ] 9.6 - Dark Mode (Opsional)
+    Tailwind `dark:` prefix + toggle di navbar
+
+
+================================================================================
+FASE 10: ADMIN PANEL
+================================================================================
+
+Backend memiliki endpoint admin LENGKAP. Berikut daftarnya:
+
+  === Admin Auth ===
+  POST /api/admin/auth/login        → { email, password } → { admin, accessToken, refreshToken }
+  POST /api/admin/auth/refresh-token → { refreshToken }
+  GET  /api/admin/auth/me           → { id, nama, email, role, is_active }
+
+  === Admin Dashboard ===
+  GET /api/admin/dashboard/summary  → { totalUser, totalSoal, totalUjian, laporanPending, kontribusiPending }
+
+  === Admin Master Data (CRUD) ===
+  POST/PATCH/DELETE  /api/admin/master/kategori[/:id]
+  POST/PATCH/DELETE  /api/admin/master/jenis[/:id]
+  POST               /api/admin/master/pendidikan
+  POST               /api/admin/master/jurusan
+  POST/PATCH/DELETE  /api/admin/master/instansi[/:id]    → DELETE = soft delete
+  POST/PATCH/DELETE  /api/admin/master/formasi[/:id]     → DELETE = soft delete
+
+  === Admin Bank Soal ===
+  POST/GET/PATCH/DELETE  /api/admin/backoffice/bank-soal[/:id]
+
+  === Admin Soal (multipart upload gambar) ===
+  POST   /api/admin/backoffice/soal                  → create soal + upload gambar
+  GET    /api/admin/backoffice/soal/bank/:bank_soal_id → daftar soal per bank, query: ?search=&kategori_id=&jenis_id=&level=
+  PATCH  /api/admin/backoffice/soal/:id               → update soal + upload gambar
+  PATCH  /api/admin/backoffice/soal/:id/toggle-active → on/off soal
+  DELETE /api/admin/backoffice/soal/:id               → hapus soal permanen
+
+  === Admin Paket Ujian ===
+  POST/GET/PATCH  /api/admin/backoffice/paket-ujian[/:id]
+  POST            /api/admin/backoffice/paket-ujian/:ujian_id/soal    → tambah soal ke paket
+  GET             /api/admin/backoffice/paket-ujian/:ujian_id/soal    → lihat soal dalam paket
+  DELETE          /api/admin/backoffice/paket-ujian/soal/:mapping_id  → hapus soal dari paket
+  PATCH           /api/admin/backoffice/paket-ujian/soal/reorder      → ubah urutan soal
+
+  === Admin Review ===
+  GET/PATCH  /api/admin/backoffice/laporan-soal[/:id]      → daftar & review laporan
+  GET/PATCH  /api/admin/backoffice/kontribusi-soal[/:id]   → daftar & review kontribusi
+
+  Review Laporan Body:  { status: "DITINJAU"|"DIPERBAIKI"|"DITOLAK", review_note? }
+  Review Kontribusi Body: { status: "APPROVED"|"REJECTED", review_note?, bank_soal_id? (wajib jika APPROVED) }
+
+-----
+
+REKOMENDASI: Embed di satu project, beda route (/admin/*)
+Buat AdminRoute yang cek apakah user adalah admin.
+
+[ ] 10.1 - Buat AdminAuthContext (terpisah dari user AuthContext)
+[ ] 10.2 - Halaman Admin Login: src/pages/admin/AdminLoginPage.tsx
+[ ] 10.3 - Layout Admin: src/components/layout/AdminLayout.tsx
+    Sidebar: Dashboard | Master Data | Bank Soal | Paket Ujian | Laporan | Kontribusi
+[ ] 10.4 - Admin Dashboard (ringkasan angka)
+[ ] 10.5 - CRUD Master Data (Kategori, Jenis, Pendidikan, dll)
+[ ] 10.6 - CRUD Bank Soal + Soal (form upload multi-gambar)
+[ ] 10.7 - CRUD Paket Ujian + Mapping Soal (drag-reorder)
+[ ] 10.8 - Review Laporan Soal (list + ubah status)
+[ ] 10.9 - Review Kontribusi Soal (list + approve/reject)
+
+
+================================================================================
+CATATAN TEKNIS PENTING
+================================================================================
+
+1. GAMBAR/FILE STATIC
+   Database menyimpan path relatif: "uploads/soal/abc.jpg"
+   URL di frontend: /static/uploads/soal/abc.jpg
+   Tag HTML: <img src="/static/uploads/soal/abc.jpg" />
+   Jika field null → JANGAN tampilkan <img>
+
+2. PAGINATION
+   Backend menerima: ?page=1&limit=10 (default page=1, limit=10, max=100)
+   Response.meta: { page, limit, total, totalPages }
+
+3. ENUM VALUES
+   UserKategori: FREE, PREMIUM
+   TipeUjian: TRYOUT, LATIHAN, QUIZ
+   PeruntukanUjian: FREE, PREMIUM, ALL
+   LevelSoal: MUDAH, SEDANG, SULIT, HOST
+   JawabanOpsi: A, B, C, D, E
+   JenisKelamin: LAKI_LAKI, PEREMPUAN
+   JenisLaporan: JAWABAN_SALAH, SOAL_SALAH, TYPO, PEMBAHASAN_SALAH, GAMBAR_RUSAK, DUPLIKAT, LAINNYA
+   StatusKontribusi: PENDING, APPROVED, REJECTED
+   StatusLaporan: PENDING, DITINJAU, DIPERBAIKI, DITOLAK
+   StatusHasilUjian: BERLANGSUNG, SELESAI, TIMEOUT
+   TingkatPenguasaan: BELUM, RENDAH, SEDANG, TINGGI, MAHIR
+   AdminRole: SUPER_ADMIN, ADMIN
+
+4. RATE LIMITING
+   Auth endpoints: max 15 request per 15 menit
+   All API: max 100 request per 1 menit
+   Error 429 → tampilkan "Terlalu banyak percobaan"
+
+5. TOKEN
+   accessToken: berlaku 1 hari, refreshToken: berlaku 7 hari
+   Simpan di localStorage (key: 'accessToken', 'refreshToken')
+   Auto-refresh sudah di-handle oleh interceptor
+
+6. HEARTBEAT UJIAN
+   Kirim setiap 30 detik (HEARTBEAT_INTERVAL_SECONDS)
+   Timeout jika 120 detik tidak heartbeat (HEARTBEAT_TIMEOUT_SECONDS)
+
+7. FILE UPLOAD
+   Max size: 2MB, Format: .jpg, .jpeg saja
+   Validasi di frontend sebelum upload:
+   if (file.size > 2*1024*1024) → "File terlalu besar (maks 2MB)"
+
+
+================================================================================
+URUTAN PENGERJAAN YANG DIREKOMENDASIKAN
+================================================================================
+
+Sprint 1 (Hari 1-2):  Fase 1           → Auth (Login/Register)
+Sprint 2 (Hari 3-4):  Fase 2 + Fase 3  → Master Data + Profil
+Sprint 3 (Hari 5-6):  Fase 8           → Layout + Routing + Komponen UI
+Sprint 4 (Hari 7-10): Fase 4           → Ujian (paling kompleks!)
+Sprint 5 (Hari 11-12):Fase 5           → Dashboard + Riwayat
+Sprint 6 (Hari 13-14):Fase 6 + Fase 7  → Sosial + Leaderboard
+Sprint 7 (Hari 15-16):Fase 9           → Polish & UX
+Sprint 8 (Hari 17-21):Fase 10          → Admin Panel (opsional, bisa nanti)
+
+================================================================================
+TOTAL ESTIMASI: ~16-21 hari kerja (1 programmer junior)
+  - User-facing (Fase 1-9):  16 hari
+  - Admin panel (Fase 10):   +5 hari
+================================================================================
