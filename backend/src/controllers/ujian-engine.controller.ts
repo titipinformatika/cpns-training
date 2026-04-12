@@ -337,7 +337,7 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
       skorTotal, isLulus, detailLulus, statsKategori, statsJenis, semuaKategori
     } = await engineService.finalizeExamStatistics(userId, hasil_ujian_id, semuaJawaban);
 
-    const jumlahDijawab = totalBenar + totalSalah;
+    const jumlahDijawab = semuaJawaban.filter(j => j.jawaban_user !== null).length;
     const jumlahKosong = hasil.total_soal - jumlahDijawab;
 
     // 5. Transaction Update
