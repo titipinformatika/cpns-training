@@ -67,14 +67,14 @@ export default function HasilUjianPage() {
           {hasil.is_lulus ? <Trophy className="w-12 h-12" /> : <XCircle className="w-12 h-12" />}
         </div>
         
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Hasil Ujian
         </h1>
         <p className="text-gray-500 font-medium">Sesi pemeriksaan selesai dilakukan</p>
       </div>
 
       {/* Hero Score Card */}
-      <div className="bg-white rounded-[3rem] shadow-2xl shadow-gray-100 border border-gray-100 p-10 mb-8 overflow-hidden relative">
+      <div className="bg-white rounded-2xl shadow-xl shadow-gray-100 border border-gray-100 p-6 mb-8 overflow-hidden relative">
         <div className={clsx(
           "absolute top-0 right-0 w-48 h-48 -mr-16 -mt-16 rounded-full opacity-5 blur-3xl",
           hasil.is_lulus ? "bg-emerald-500" : "bg-red-500"
@@ -106,14 +106,14 @@ export default function HasilUjianPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
-            <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100 text-center min-w-[140px]">
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center min-w-[140px]">
               <TrendingUp className="w-5 h-5 text-indigo-500 mx-auto mb-2" />
               <p className="text-[10px] text-gray-400 font-bold uppercase">Akurasi</p>
               <p className="text-xl font-extrabold text-gray-900">
                 {Math.round((hasil.jumlah_benar / hasil.total_soal) * 100)}%
               </p>
             </div>
-            <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100 text-center min-w-[140px]">
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center min-w-[140px]">
               <Clock className="w-5 h-5 text-indigo-500 mx-auto mb-2" />
               <p className="text-[10px] text-gray-400 font-bold uppercase">Waktu</p>
               <p className="text-xl font-extrabold text-gray-900">
@@ -148,7 +148,7 @@ export default function HasilUjianPage() {
       </div>
 
       {/* Stats Breakdown */}
-      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-xl shadow-gray-50 p-8 mb-12">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-50 p-6 mb-12">
         <h3 className="text-lg font-bold text-gray-900 mb-8 border-b border-gray-50 pb-4">Statistik Jawaban</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="space-y-1">

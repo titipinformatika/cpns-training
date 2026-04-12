@@ -61,17 +61,17 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Brand/Logo Section */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 mb-4 transform hover:scale-105 transition-transform duration-300">
-            <Landmark className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-200 mb-4 transform hover:scale-105 transition-transform duration-300">
+            <Landmark className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">CPNS Training</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">CPNS Training</h1>
           <p className="text-gray-500 mt-2 font-medium">Masuk untuk melanjutkan belajar</p>
         </div>
 
         {/* Card Section */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl shadow-indigo-100/50 border border-white p-8">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl shadow-indigo-100/50 border border-white p-6">
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-800">Selamat Datang</h2>
+            <h2 className="text-lg font-bold text-gray-800">Selamat Datang</h2>
             <p className="text-sm text-gray-500">Silakan masukkan akun Anda</p>
           </div>
 

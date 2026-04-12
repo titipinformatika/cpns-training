@@ -31,9 +31,11 @@ export default function UserDashboardPage() {
   const [stats, setStats] = useState<DashboardStatistik | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [isMounted, setIsMounted] = useState(false);
+  
   useEffect(() => {
     fetchStatistik();
+    setIsMounted(true);
   }, []);
 
   const fetchStatistik = async () => {
@@ -105,12 +107,12 @@ export default function UserDashboardPage() {
         {/* Welcome Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <h1 className="text-4xl font-black text-gray-900 tracking-tight">Ringkasan Performa</h1>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Ringkasan Performa</h1>
             <p className="text-gray-500 font-medium">Selamat datang kembali! Mari cek progres belajar Anda hari ini.</p>
           </div>
           <Link 
             to="/ujian"
-            className="group flex items-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-[2rem] font-black shadow-2xl shadow-indigo-100 transition-all active:scale-95"
+            className="group flex items-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-xl shadow-indigo-100 transition-all active:scale-95"
           >
             <Zap className="w-5 h-5 fill-white" />
             Mulai Simulasi Baru
@@ -121,14 +123,14 @@ export default function UserDashboardPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {cards.map((card, idx) => (
-            <div key={idx} className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 flex items-start justify-between relative overflow-hidden group hover:scale-[1.02] transition-all">
+            <div key={idx} className="bg-white p-6 rounded-2xl shadow-lg shadow-gray-200/50 border border-gray-100 flex items-start justify-between relative overflow-hidden group hover:scale-[1.02] transition-all">
               <div className="space-y-4 relative z-10">
                 <div className={clsx("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg", card.color)}>
                   {card.icon}
                 </div>
                 <div>
                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{card.label}</p>
-                   <h3 className="text-3xl font-black text-gray-900 mt-1">{card.value}</h3>
+                   <h3 className="text-2xl font-bold text-gray-900 mt-1">{card.value}</h3>
                    <p className="text-[11px] font-bold text-gray-400 mt-1">{card.desc}</p>
                 </div>
               </div>
@@ -143,10 +145,10 @@ export default function UserDashboardPage() {
 
         {/* Chart Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <div className="lg:col-span-2 bg-white rounded-[3rem] p-10 shadow-2xl shadow-gray-200/50 border border-gray-100 flex flex-col">
-              <div className="flex items-center justify-between mb-10">
+           <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-lg shadow-gray-200/50 border border-gray-100 flex flex-col">
+              <div className="flex items-center justify-between mb-8">
                  <div>
-                    <h3 className="text-xl font-black text-gray-900">Tren Skor</h3>
+                    <h3 className="text-lg font-bold text-gray-900">Tren Skor</h3>
                     <p className="text-sm text-gray-400 font-bold">10 Simulasi Terakhir</p>
                  </div>
                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-xl text-gray-400 text-xs font-bold">
@@ -155,60 +157,62 @@ export default function UserDashboardPage() {
                  </div>
               </div>
 
-              <div className="h-[350px] w-full mt-auto">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={stats?.tren_skor || []}>
-                    <defs>
-                      <linearGradient id="colorSkor" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                      dataKey="tanggal" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
-                      dx={-10}
-                    />
-                    <Tooltip 
-                      contentStyle={{
-                        borderRadius: '20px',
-                        border: 'none',
-                        boxShadow: '0 20px 50px rgba(0,0,0,0.05)',
-                        padding: '15px'
-                      }}
-                      itemStyle={{ fontWeight: 800, color: '#1e293b' }}
-                      labelStyle={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '5px' }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="skor" 
-                      stroke="#4f46e5" 
-                      strokeWidth={4}
-                      fillOpacity={1} 
-                      fill="url(#colorSkor)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="h-[280px] w-full mt-auto">
+                {isMounted && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={stats?.tren_skor || []}>
+                      <defs>
+                        <linearGradient id="colorSkor" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="tanggal" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
+                        dy={10}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
+                        dx={-10}
+                      />
+                      <Tooltip 
+                        contentStyle={{
+                          borderRadius: '20px',
+                          border: 'none',
+                          boxShadow: '0 20px 50px rgba(0,0,0,0.05)',
+                          padding: '15px'
+                        }}
+                        itemStyle={{ fontWeight: 800, color: '#1e293b' }}
+                        labelStyle={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '5px' }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="skor" 
+                        stroke="#4f46e5" 
+                        strokeWidth={4}
+                        fillOpacity={1} 
+                        fill="url(#colorSkor)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
               </div>
            </div>
 
            {/* Quick Actions / Info Card */}
-           <div className="bg-indigo-600 rounded-[3rem] p-10 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden flex flex-col">
+           <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-200 relative overflow-hidden flex flex-col">
               <div className="relative z-10 space-y-8 h-full">
                  <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-[1.5rem] flex items-center justify-center">
                     <Calendar className="w-8 h-8" />
                  </div>
                  <div className="space-y-3">
-                    <h3 className="text-3xl font-black tracking-tight leading-tight">Siap Untuk Seleksi CPNS 2024?</h3>
+                    <h3 className="text-xl font-bold tracking-tight leading-tight">Siap Untuk Seleksi CPNS 2024?</h3>
                     <p className="text-indigo-100 font-medium leading-relaxed">
                       Latihan secara rutin adalah kunci keberhasilan. Semakin sering Anda simulasi, semakin terbiasa dengan pola soal.
                     </p>
@@ -217,7 +221,7 @@ export default function UserDashboardPage() {
                  <div className="pt-4 mt-auto">
                     <Link
                       to="/riwayat"
-                      className="inline-flex items-center gap-2 bg-white text-indigo-600 px-8 py-4 rounded-3xl font-black shadow-xl transition-all hover:scale-105 active:scale-95"
+                      className="inline-flex items-center gap-2 bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold shadow-lg transition-all hover:scale-105 active:scale-95"
                     >
                       Cek Riwayat Lengkap
                       <ChevronRight className="w-5 h-5" />

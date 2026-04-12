@@ -100,7 +100,7 @@ export default function DetailUjianPage() {
         Kembali ke Daftar
       </Link>
 
-      <div className="bg-white rounded-[2rem] shadow-2xl shadow-gray-100 border border-gray-100 overflow-hidden animate-in fade-in duration-700">
+      <div className="bg-white rounded-2xl shadow-xl shadow-gray-100 border border-gray-100 overflow-hidden animate-in fade-in duration-700">
         <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-10 text-white relative overflow-hidden">
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
@@ -111,7 +111,7 @@ export default function DetailUjianPage() {
               <Info className="w-3 h-3" />
               Detail Informasi Ujian
             </div>
-            <h1 className="text-4xl font-extrabold mb-4">{ujian.nama}</h1>
+            <h1 className="text-2xl font-bold mb-4">{ujian.nama}</h1>
             <p className="text-indigo-50/80 text-lg max-w-2xl leading-relaxed">
               {ujian.deskripsi || 'Silakan baca instruksi dengan teliti sebelum memulai simulasi ini.'}
             </p>
@@ -179,7 +179,7 @@ export default function DetailUjianPage() {
       {/* Custom Confirmation Dialog */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-10 text-center animate-in zoom-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in duration-300">
             <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
               <Play className="w-8 h-8 fill-current ml-1" />
             </div>

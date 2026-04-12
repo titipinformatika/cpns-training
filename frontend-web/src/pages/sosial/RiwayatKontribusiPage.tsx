@@ -98,7 +98,7 @@ export default function RiwayatKontribusiPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Riwayat Kontribusi</h1>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Riwayat Kontribusi</h1>
             <p className="text-gray-500 font-medium">Pantau status validasi soal-soal yang Anda kirimkan</p>
           </div>
           <Link
@@ -111,7 +111,7 @@ export default function RiwayatKontribusiPage() {
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-100 border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-lg shadow-gray-100 border border-gray-100 overflow-hidden">
           {data.length === 0 ? (
             <EmptyState
               title="Belum ada kontribusi"

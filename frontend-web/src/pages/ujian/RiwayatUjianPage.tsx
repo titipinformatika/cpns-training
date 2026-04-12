@@ -96,7 +96,7 @@ export default function RiwayatUjianPage() {
         </div>
 
         {/* List Content */}
-        <div className="bg-white rounded-[3rem] shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
            {data.length === 0 ? (
              <EmptyState
                title="Belum ada riwayat"
@@ -197,8 +197,8 @@ export default function RiwayatUjianPage() {
         </div>
 
         {/* Warning Section */}
-        <div className="bg-amber-50 border border-amber-100 rounded-[2.5rem] p-10 flex items-start gap-8">
-           <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-[1.5rem] flex items-center justify-center shrink-0">
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-6 flex items-start gap-8">
+           <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
               <AlertCircle className="w-8 h-8" />
            </div>
            <div className="space-y-2">

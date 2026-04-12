@@ -107,14 +107,14 @@ export default function DetailRiwayatPage() {
         </Link>
 
         {/* Header Summary Card */}
-        <div className="bg-white rounded-[3rem] shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
            <div className="p-12 space-y-10">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                  <div className="space-y-3">
                     <span className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-indigo-100">
                        Evaluasi Hasil
                     </span>
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tight">{data.ujian_nama}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{data.ujian_nama}</h1>
                     <div className="flex items-center gap-4 text-xs font-bold text-gray-400">
                        <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> {formatDurasi(data.durasi_pengerjaan_detik)}</span>
                        <span className="w-1 h-1 bg-gray-300 rounded-full" />
@@ -180,13 +180,13 @@ export default function DetailRiwayatPage() {
         {/* Section Title */}
         <div className="flex items-center gap-4">
            <div className="w-2 h-8 bg-indigo-600 rounded-full" />
-           <h2 className="text-3xl font-black text-gray-900 tracking-tight">Review Soal</h2>
+           <h2 className="text-xl font-bold text-gray-900 tracking-tight">Review Soal</h2>
         </div>
 
         {/* Questions Review List */}
         <div className="space-y-8">
            {data.detail_soal.map((soal, idx) => (
-             <div key={soal.soal_id} className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+             <div key={soal.soal_id} className="bg-white rounded-2xl shadow-lg shadow-gray-200/50 border border-gray-100 overflow-hidden">
                 {/* Question Header */}
                 <div className="px-10 py-6 bg-gray-50/50 border-b border-gray-50 flex items-center justify-between">
                    <span className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Pertanyaan #{idx + 1}</span>

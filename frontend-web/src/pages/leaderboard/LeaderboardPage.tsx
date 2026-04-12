@@ -240,7 +240,7 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Content Card */}
-        <div className="bg-white rounded-[3rem] shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden min-h-[400px]">
+        <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden min-h-[400px]">
           {!selectedUjianId ? (
             <EmptyState
               title="Siap Untuk Bersaing?"
@@ -338,7 +338,7 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Info Box */}
-        <div className="bg-amber-50 border border-amber-100 rounded-[2.5rem] p-8 flex items-start gap-6">
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-6 flex items-start gap-6">
            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
               <AlertCircle className="w-6 h-6" />
            </div>

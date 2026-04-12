@@ -10,7 +10,7 @@ export default function NotFoundPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 font-sans">
       <div className="max-w-md w-full text-center space-y-10 animate-in fade-in zoom-in duration-500">
         <div className="relative">
-          <div className="w-40 h-40 bg-indigo-50 rounded-[3rem] rotate-12 flex items-center justify-center mx-auto shadow-inner">
+          <div className="w-40 h-40 bg-indigo-50 rounded-2xl rotate-12 flex items-center justify-center mx-auto shadow-inner">
             <Search className="w-20 h-20 text-indigo-200 -rotate-12" />
           </div>
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -19,7 +19,7 @@ export default function NotFoundPage() {
         </div>
 
         <div className="space-y-4">
-          <h1 className="text-3xl font-black text-gray-900 leading-tight">Halaman Tidak Ditemukan</h1>
+          <h1 className="text-2xl font-black text-gray-900 leading-tight">Halaman Tidak Ditemukan</h1>
           <p className="text-gray-500 font-bold leading-relaxed">
             Maaf, halaman yang Anda cari tidak tersedia atau mungkin telah dipindahkan ke alamat lain.
           </p>

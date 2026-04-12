@@ -98,12 +98,12 @@ export default function RiwayatLaporanPage() {
       <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
         {/* Header */}
         <div className="space-y-2">
-          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Riwayat Laporan</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Riwayat Laporan</h1>
           <p className="text-gray-500 font-medium">Laporan masalah soal yang telah Anda kirimkan</p>
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-100 border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-lg shadow-gray-100 border border-gray-100 overflow-hidden">
           {data.length === 0 ? (
             <EmptyState
               title="Belum ada laporan"

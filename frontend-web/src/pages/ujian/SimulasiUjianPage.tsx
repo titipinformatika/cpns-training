@@ -334,7 +334,7 @@ export default function SimulasiUjianPage() {
         <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-32">
           <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Question Card */}
-            <div className="bg-white rounded-[2rem] shadow-xl shadow-gray-100 border border-gray-100 p-8 md:p-12">
+            <div className="bg-white rounded-2xl shadow-xl shadow-gray-100 border border-gray-100 p-5 md:p-6">
               <div className="flex items-start gap-4 mb-8">
                 <span className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-extrabold shrink-0">
                   {currentIndex + 1}
@@ -533,7 +533,7 @@ export default function SimulasiUjianPage() {
       {/* Custom Confirmation Modal */}
       {showSubmitModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-10 text-center animate-in zoom-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in duration-300">
             <div className={clsx(
               "w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6",
               raguList.size > 0 || answers.size < soalList.length ? "bg-amber-50 text-amber-500" : "bg-red-50 text-red-600"
