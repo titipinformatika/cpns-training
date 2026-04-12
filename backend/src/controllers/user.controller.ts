@@ -135,12 +135,46 @@ export async function getRiwayatDetail(req: Request, res: Response, next: NextFu
 
 /**
  * GET /api/user/statistik
- * Aggregated user competency stats
+ * Aggregated user competency stats + Dashboard Summary
  */
 export async function getStatistikUser(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = req.user!.id;
 
+    // 1. Get Top Level Stats
+    const hasilUjian = await prisma.hasilUjian.findMany({
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+      select: {
+        skor_total: true,
+        is_lulus: true,
+        created_at: true,
+        ujian: { select: { nama: true } }
+      }
+    });
+
+    const total_ujian = hasilUjian.length;
+    let skor_tertinggi = 0;
+    let total_skor = 0;
+    let total_lulus = 0;
+
+    hasilUjian.forEach(h => {
+      if (h.skor_total > skor_tertinggi) skor_tertinggi = h.skor_total;
+      total_skor += h.skor_total;
+      if (h.is_lulus) total_lulus++;
+    });
+
+    const rata_rata_skor = total_ujian > 0 ? total_skor / total_ujian : 0;
+    const persentase_lulus = total_ujian > 0 ? (total_lulus / total_ujian) * 100 : 0;
+
+    // 2. Trend Skor (10 Terakhir, urutan dari terlama ke terbaru untuk chart)
+    const tren_skor = hasilUjian.slice(0, 10).reverse().map(h => ({
+      tanggal: new Date(h.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+      skor: h.skor_total,
+      ujian_nama: h.ujian?.nama
+    }));
+
+    // 3. Stats per Kategori/Jenis (Existing)
     const [statsKategori, statsJenis] = await Promise.all([
       prisma.statistikUserKategori.findMany({
         where: { user_id: userId },
@@ -152,7 +186,15 @@ export async function getStatistikUser(req: Request, res: Response, next: NextFu
       })
     ]);
 
-    res.json(successResponse({ statsKategori, statsJenis }, 'Berhasil mengambil statistik user'));
+    res.json(successResponse({
+      total_ujian,
+      skor_tertinggi,
+      rata_rata_skor,
+      persentase_lulus,
+      tren_skor,
+      statsKategori,
+      statsJenis
+    }, 'Berhasil mengambil statistik user'));
   } catch (error) {
     next(error);
   }

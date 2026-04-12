@@ -30,7 +30,33 @@ export default function DetailRiwayatPage() {
     setIsLoading(true);
     try {
       const res = await userApi.getRiwayatDetail(rid);
-      setData(res.data.data);
+      const raw = res.data.data as any;
+      
+      // Map Backend Data to Frontend Interface
+      const mapped: DetailRiwayatResponse = {
+        ...raw,
+        ujian_nama: raw.ujian?.nama || 'Ujian Tanpa Nama',
+        total_soal: raw.total_soal || raw.jawaban_ujian?.length || 0,
+        detail_soal: (raw.jawaban_ujian || []).map((j: any) => ({
+          soal_id: j.ujian_soal?.soal?.id,
+          pertanyaan: j.ujian_soal?.soal?.pertanyaan,
+          pertanyaan_gambar: j.ujian_soal?.soal?.pertanyaan_gambar,
+          jawaban_user: j.jawaban_user,
+          jawaban_benar: j.ujian_soal?.soal?.jawaban_benar,
+          is_benar: j.is_benar,
+          pembahasan: j.ujian_soal?.soal?.pembahasan,
+          pembahasan_gambar: j.ujian_soal?.soal?.pembahasan_gambar,
+          opsi: [
+            { label: 'A', teks: j.ujian_soal?.soal?.opsi_a },
+            { label: 'B', teks: j.ujian_soal?.soal?.opsi_b },
+            { label: 'C', teks: j.ujian_soal?.soal?.opsi_c },
+            { label: 'D', teks: j.ujian_soal?.soal?.opsi_d },
+            { label: 'E', teks: j.ujian_soal?.soal?.opsi_e },
+          ]
+        }))
+      };
+
+      setData(mapped);
     } catch (err) {
       toast.error('Gagal mengambil detail riwayat');
     } finally {
@@ -53,7 +79,27 @@ export default function DetailRiwayatPage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="flex flex-col h-screen items-center justify-center gap-6 bg-gray-50 p-10 text-center">
+        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center">
+          <AlertCircle className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-2xl font-black text-gray-900">Data Riwayat Tidak Ditemukan</h3>
+          <p className="text-gray-500 max-w-sm mx-auto font-medium">
+            Maaf, kami tidak dapat menemukan detail untuk riwayat ujian ID #{id}. Silakan coba pilih kembali dari daftar riwayat.
+          </p>
+        </div>
+        <Link 
+          to="/riwayat" 
+          className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-indigo-100"
+        >
+          Kembali ke Daftar Riwayat
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pt-24 pb-32 px-6">
