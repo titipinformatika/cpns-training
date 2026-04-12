@@ -1,815 +1,637 @@
-# 📢 FASE 7: FITUR SOSIAL & PELAPORAN + 🏆 FASE 8: KOMPETISI & LEADERBOARDS
+# 📋 AUDIT BACKEND + TODOLIST FRONTEND (Mobile & Web)
 
 ---
 
-# FASE 7: FITUR SOSIAL & PELAPORAN
+# BAGIAN 1: AUDIT & SARAN PERBAIKAN BACKEND
 
-## Deskripsi Umum
+## ✅ Status Penyelesaian Backend (Fase 1–8)
 
-Fase ini menangani **interaksi komunitas** yang membantu memelihara kualitas soal dalam aplikasi. Fiturnya terbagi dua sisi:
+| Fase | Nama | Status | Catatan |
+|------|------|--------|---------|
+| 1 | Persiapan Fondasi & Server | ✅ Done | Express, Prisma, Zod, Multer sudah terkonfigurasi |
+| 2 | Autentikasi & Otorisasi | ✅ Done | JWT User + Admin, Middleware Auth |
+| 3 | Manajemen Data Master | ✅ Done | CRUD Kategori, Jenis, Pendidikan, Jurusan, Instansi, Formasi, Biodata |
+| 4 | Inti Backoffice (Soal) | ✅ Done | Bank Soal, Paket Ujian, Pembuatan Soal + Upload Gambar |
+| 5 | Core Engine Simulasi Ujian | ✅ Done | Mulai, Heartbeat, Simpan Jawaban, Auto-Timeout |
+| 6 | Finalisasi & Kalkulasi Skor | ✅ Done | Submit Ujian, Skor TIU/TWK/TKP, Lulus/Gagal, Update Statistik |
+| 7 | Fitur Sosial & Pelaporan | ✅ Done | Laporan Soal, Kontribusi Soal, Admin Approval + Copy ke Soal |
+| 8 | Kompetisi & Leaderboards | ✅ Done | Leaderboard Global + Pesaing Formasi |
 
-1. **Sisi User**: Melaporkan soal bermasalah (typo, jawaban salah, gambar rusak) dan mengkontribusikan soal buatan sendiri.
-2. **Sisi Admin**: Mereview laporan masuk dan meng-approve/reject kontribusi soal dari user.
-
-> **⚠️ CATATAN PENTING:** Fase ini melibatkan **upload gambar**. Pastikan middleware Multer sudah berfungsi. Utility upload sudah tersedia di `backend/src/utils/upload.ts` (`uploadLaporan` dan `uploadKontribusi`).
-
----
-
-## Checklist Tugas Fase 7
-
-- [ ] **Task 7.1**: Endpoint `POST /laporan-soal` — User mengirim laporan soal
-- [ ] **Task 7.2**: Endpoint `GET /admin/laporan-soal` — Admin melihat daftar laporan (paginasi)
-- [ ] **Task 7.3**: Endpoint `PATCH /admin/laporan-soal/:id` — Admin review & ubah status laporan
-- [ ] **Task 7.4**: Endpoint `POST /kontribusi-soal` — User mengirim kontribusi soal baru
-- [ ] **Task 7.5**: Endpoint `GET /admin/kontribusi-soal` — Admin melihat daftar kontribusi (paginasi)
-- [ ] **Task 7.6**: Endpoint `PATCH /admin/kontribusi-soal/:id` — Admin approve/reject kontribusi
-- [ ] **Task 7.7**: Unit Test untuk seluruh fitur di atas
+**Kesimpulan:** Seluruh 8 fase dalam todolist backend telah **SELESAI** diimplementasikan.
 
 ---
 
-## Referensi Codebase (WAJIB BACA DULU)
+## ⚠️ SARAN PERBAIKAN BACKEND (Prioritas Tinggi)
 
-| File | Fungsi | Kenapa Harus Dibaca |
-|------|--------|---------------------|
-| `backend/prisma/schema.prisma` | Skema database | Model `LaporanSoal`, `KontribusiSoal`, `Soal` |
-| `backend/src/utils/upload.ts` | Multer upload | Instance `uploadLaporan` dan `uploadKontribusi` sudah siap pakai |
-| `backend/src/utils/pagination.ts` | Helper paginasi | Fungsi `parsePagination()` untuk query list |
-| `backend/src/utils/response.ts` | Helper response | `successResponse()`, `errorResponse()`, `paginatedResponse()` |
-| `backend/src/middlewares/auth.middleware.ts` | Auth middleware | `authenticateUser`, `authenticateAdmin` untuk proteksi endpoint |
-| `backend/src/config/constants.ts` | Konstanta | `UPLOAD_LAPORAN_DIR`, `UPLOAD_KONTRIBUSI_DIR`, `MAX_FILE_SIZE` |
-| `backend/src/__tests__/backoffice.test.ts` | Contoh test | Pola penulisan test dengan mock Prisma yang benar |
+Berikut temuan dari audit kode yang **sangat disarankan** untuk dikerjakan sebelum memulai frontend:
 
----
+### 1. 🔴 Endpoint User yang Belum Ada (Missing User-Facing API)
 
-## TASK 7.1: Endpoint `POST /laporan-soal` (User)
+Backend saat ini belum memiliki endpoint berikut yang **PASTI dibutuhkan oleh frontend**:
 
-### Tujuan
-User melaporkan soal yang bermasalah (misalnya: typo, jawaban salah, gambar rusak, dsb). Bisa menyertakan bukti screenshot.
+| Endpoint yang Diperlukan | Kegunaan | Prioritas |
+|--------------------------|----------|-----------|
+| `GET /api/ujian` | Daftar ujian yang tersedia (untuk ditampilkan di homepage) | 🔴 Wajib |
+| `GET /api/ujian/:id` | Detail ujian sebelum memulai (info durasi, jumlah soal, dsb) | 🔴 Wajib |
+| `GET /api/user/riwayat-ujian` | Riwayat ujian user (daftar `HasilUjian` milik user) | 🔴 Wajib |
+| `GET /api/user/riwayat-ujian/:id` | Detail hasil ujian + pembahasan jawaban | 🔴 Wajib |
+| `GET /api/user/statistik` | Statistik kompetensi user (dari `StatistikUserKategori` & `StatistikUserJenis`) | 🔴 Wajib |
+| `GET /api/user/kontribusi-soal` | Daftar kontribusi soal milik user sendiri (lihat status PENDING/APPROVED/REJECTED) | 🟡 Sangat direkomendasikan |
+| `GET /api/user/laporan-soal` | Daftar laporan soal milik user sendiri | 🟡 Sangat direkomendasikan |
 
-### Request
+### 2. 🟡 Static File Serving Belum Dikonfigurasi
 
-```
-POST /api/laporan-soal
-Content-Type: multipart/form-data
-Authorization: Bearer <user_token>
-```
-
-| Field | Tipe | Wajib | Keterangan |
-|-------|------|-------|------------|
-| `soal_id` | number | ✅ | ID soal yang dilaporkan |
-| `jenis_laporan` | enum | ✅ | `JAWABAN_SALAH`, `SOAL_SALAH`, `TYPO`, `PEMBAHASAN_SALAH`, `GAMBAR_RUSAK`, `DUPLIKAT`, `LAINNYA` |
-| `deskripsi` | string | ✅ | Penjelasan detail dari user (min 10 karakter) |
-| `bukti_screenshot` | file | ❌ | File gambar .jpg/.jpeg (max 2MB) |
-
-### Validasi Zod
-
-```typescript
-export const kirimLaporanSchema = z.object({
-  soal_id: z.coerce.number().int().positive(),
-  jenis_laporan: z.enum([
-    'JAWABAN_SALAH', 'SOAL_SALAH', 'TYPO', 'PEMBAHASAN_SALAH',
-    'GAMBAR_RUSAK', 'DUPLIKAT', 'LAINNYA'
-  ]),
-  deskripsi: z.string().min(10, 'Deskripsi minimal 10 karakter'),
-});
-```
-
-### Alur Logika
-
-```
-[1] Validasi: Apakah soal_id valid? (soal exists & is_active)
-    │
-[2] Cek duplikasi: Apakah user sudah pernah melaporkan soal ini dengan jenis yang sama?
-    │   → Jika ya, tolak (400) "Anda sudah melaporkan soal ini sebelumnya"
-    │
-[3] Simpan gambar jika ada:
-    │   → Menggunakan middleware `uploadLaporan.single('bukti_screenshot')`
-    │   → Simpan path file ke kolom `bukti_screenshot`
-    │
-[4] Create record di tabel `laporan_soal`:
-    │   - user_id = dari token
-    │   - soal_id, jenis_laporan, deskripsi = dari body
-    │   - bukti_screenshot = path file (atau null)
-    │   - status = 'PENDING' (default)
-    │
-[5] Return response 201
-```
-
-### Response Sukses (201)
-
-```json
-{
-  "success": true,
-  "message": "Laporan berhasil dikirim",
-  "data": {
-    "id": 1,
-    "soal_id": 42,
-    "jenis_laporan": "TYPO",
-    "deskripsi": "Opsi A ada typo 'mafaat' seharusnya 'manfaat'",
-    "bukti_screenshot": "uploads/laporan/1712905200000-123456789.jpg",
-    "status": "PENDING"
-  }
-}
-```
-
-### Middleware yang Dibutuhkan di Route
-
-```typescript
-router.post(
-  '/',
-  authenticateUser,
-  uploadLaporan.single('bukti_screenshot'),  // upload dulu, baru validasi body
-  validate(kirimLaporanSchema),
-  laporanController.kirimLaporan
-);
-```
-
-> **⚠️ PENTING**: `uploadLaporan.single()` harus dipasang **SEBELUM** `validate()` karena Multer harus parse `multipart/form-data` dulu sebelum body bisa divalidasi oleh Zod.
-
----
-
-## TASK 7.2: Endpoint `GET /admin/laporan-soal` (Admin)
-
-### Tujuan
-Admin melihat daftar laporan masuk dengan paginasi dan filter.
-
-### Request
-
-```
-GET /api/admin/laporan-soal?page=1&limit=10&status=PENDING
-Authorization: Bearer <admin_token>
-```
-
-| Query Param | Tipe | Default | Keterangan |
-|-------------|------|---------|------------|
-| `page` | number | 1 | Halaman |
-| `limit` | number | 10 | Jumlah per halaman |
-| `status` | enum? | - | Filter: `PENDING`, `DITINJAU`, `DIPERBAIKI`, `DITOLAK` |
-
-### Alur Logika
-
-```typescript
-const { page, limit, skip } = parsePagination(req.query);
-
-const where: any = {};
-if (req.query.status) {
-  where.status = req.query.status;
-}
-
-const [data, total] = await Promise.all([
-  prisma.laporanSoal.findMany({
-    where,
-    skip,
-    take: limit,
-    orderBy: { created_at: 'desc' },
-    include: {
-      user: { select: { id: true, nama: true, email: true } },
-      soal: { select: { id: true, pertanyaan: true } },
-    }
-  }),
-  prisma.laporanSoal.count({ where })
-]);
-
-res.json(paginatedResponse(data, total, page, limit));
-```
-
----
-
-## TASK 7.3: Endpoint `PATCH /admin/laporan-soal/:id` (Admin)
-
-### Tujuan
-Admin mereview laporan dan mengubah statusnya.
-
-### Request Body
-
-```typescript
-export const reviewLaporanSchema = z.object({
-  status: z.enum(['DITINJAU', 'DIPERBAIKI', 'DITOLAK']),
-  review_note: z.string().optional(),
-});
-```
-
-### Alur Logika
-
-```
-[1] Cari laporan berdasarkan ID (params)
-    │
-[2] Validasi: Apakah laporan ada?
-    │
-[3] Update laporan:
-    │   - status = dari body
-    │   - review_note = dari body (opsional)
-    │   - reviewed_by = admin ID dari token
-    │   - reviewed_at = new Date()
-    │
-[4] Return response 200
-```
-
-### Response Sukses (200)
-
-```json
-{
-  "success": true,
-  "message": "Status laporan berhasil diperbarui",
-  "data": {
-    "id": 1,
-    "status": "DIPERBAIKI",
-    "review_note": "Typo sudah diperbaiki di soal ID 42",
-    "reviewed_by": 1,
-    "reviewed_at": "2026-04-12T10:00:00.000Z"
-  }
-}
-```
-
----
-
-## TASK 7.4: Endpoint `POST /kontribusi-soal` (User)
-
-### Tujuan
-User mengirimkan soal buatan sendiri untuk ditinjau oleh admin. Mirip format tabel `Soal`, tapi statusnya `PENDING` sampai di-approve.
-
-### Request
-
-```
-POST /api/kontribusi-soal
-Content-Type: multipart/form-data
-Authorization: Bearer <user_token>
-```
-
-| Field | Tipe | Wajib | Keterangan |
-|-------|------|-------|------------|
-| `kategori_soal_id` | number | ✅ | ID kategori (TIU/TWK/TKP) |
-| `jenis_soal_id` | number | ✅ | ID jenis soal (Verbal, Numerik, dll) |
-| `level` | enum | ✅ | `MUDAH`, `SEDANG`, `SULIT`, `HOST` |
-| `pertanyaan` | string | ✅ | Teks pertanyaan |
-| `opsi_a` s/d `opsi_e` | string | ✅ | Teks opsi jawaban |
-| `jawaban_benar` | enum | ✅ | `A`, `B`, `C`, `D`, `E` |
-| `pembahasan` | string | ❌ | Penjelasan jawaban |
-| `pertanyaan_gambar` | file | ❌ | Gambar pertanyaan (.jpg) |
-| `opsi_a_gambar` s/d `opsi_e_gambar` | file | ❌ | Gambar opsi (.jpg) |
-| `pembahasan_gambar` | file | ❌ | Gambar pembahasan (.jpg) |
-
-### Validasi Zod
-
-```typescript
-export const kirimKontribusiSchema = z.object({
-  kategori_soal_id: z.coerce.number().int().positive(),
-  jenis_soal_id: z.coerce.number().int().positive(),
-  level: z.enum(['MUDAH', 'SEDANG', 'SULIT', 'HOST']),
-  pertanyaan: z.string().min(5, 'Pertanyaan terlalu pendek'),
-  opsi_a: z.string().min(1),
-  opsi_b: z.string().min(1),
-  opsi_c: z.string().min(1),
-  opsi_d: z.string().min(1),
-  opsi_e: z.string().min(1),
-  jawaban_benar: z.enum(['A', 'B', 'C', 'D', 'E']),
-  pembahasan: z.string().optional(),
-});
-```
-
-### Alur Logika
-
-```
-[1] Validasi: Apakah kategori_soal_id & jenis_soal_id valid?
-    │
-[2] Simpan gambar jika ada (multiple files):
-    │   → Menggunakan uploadKontribusi.fields([
-    │       { name: 'pertanyaan_gambar', maxCount: 1 },
-    │       { name: 'opsi_a_gambar', maxCount: 1 },
-    │       ... (sampai opsi_e_gambar & pembahasan_gambar)
-    │     ])
-    │
-[3] Create record di tabel `kontribusi_soal`:
-    │   - user_id = dari token
-    │   - semua field dari body & path gambar
-    │   - status = 'PENDING' (default)
-    │
-[4] Return response 201
-```
-
-### Middleware di Route (Multi-file Upload)
-
-```typescript
-router.post(
-  '/',
-  authenticateUser,
-  uploadKontribusi.fields([
-    { name: 'pertanyaan_gambar', maxCount: 1 },
-    { name: 'opsi_a_gambar', maxCount: 1 },
-    { name: 'opsi_b_gambar', maxCount: 1 },
-    { name: 'opsi_c_gambar', maxCount: 1 },
-    { name: 'opsi_d_gambar', maxCount: 1 },
-    { name: 'opsi_e_gambar', maxCount: 1 },
-    { name: 'pembahasan_gambar', maxCount: 1 },
-  ]),
-  validate(kirimKontribusiSchema),
-  kontribusiController.kirimKontribusi
-);
-```
-
-### Tips: Cara Mengambil Path File dari Multer
-
-```typescript
-// Setelah uploadKontribusi.fields(), file ada di req.files
-const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-
-const pertanyaanGambar = files?.pertanyaan_gambar?.[0]?.path ?? null;
-const opsiAGambar = files?.opsi_a_gambar?.[0]?.path ?? null;
-// ... dan seterusnya
-```
-
----
-
-## TASK 7.5: Endpoint `GET /admin/kontribusi-soal` (Admin)
-
-### Tujuan
-Admin melihat daftar kontribusi soal dari user, dengan paginasi dan filter status.
-
-### Request
-
-```
-GET /api/admin/kontribusi-soal?page=1&limit=10&status=PENDING
-Authorization: Bearer <admin_token>
-```
-
-### Alur Logika
-
-Sama persis polanya dengan Task 7.2 (`GET /admin/laporan-soal`), cukup ganti model dari `laporanSoal` → `kontribusiSoal`.
-
-```typescript
-const data = await prisma.kontribusiSoal.findMany({
-  where,
-  skip,
-  take: limit,
-  orderBy: { created_at: 'desc' },
-  include: {
-    user: { select: { id: true, nama: true } },
-    kategori_soal: { select: { kode: true, nama: true } },
-    jenis_soal: { select: { nama: true } },
-  }
-});
-```
-
----
-
-## TASK 7.6: Endpoint `PATCH /admin/kontribusi-soal/:id` (Admin Approve/Reject)
-
-### Tujuan
-Admin meng-approve atau me-reject kontribusi soal dari user.
-
-> **⚠️ INI ADALAH TASK PALING KRITIS DI FASE 7**: Jika admin meng-**APPROVE**, maka data dari `kontribusi_soal` harus **otomatis di-copy** menjadi record baru di tabel `soal`.
-
-### Request Body
-
-```typescript
-export const reviewKontribusiSchema = z.object({
-  status: z.enum(['APPROVED', 'REJECTED']),
-  review_note: z.string().optional(),
-  bank_soal_id: z.coerce.number().int().positive().optional(),
-  // bank_soal_id WAJIB jika status = APPROVED (di mana soal akan dimasukkan?)
-});
-```
-
-### Alur Logika (dengan Diagram)
-
-```
-Admin klik Approve/Reject
-    │
-    ▼
-[1] Cari kontribusi berdasarkan ID
-    │
-[2] Validasi: Status masih PENDING?
-    │   → Jika sudah APPROVED/REJECTED, tolak (400)
-    │
-[3] Cek status:
-    │
-    ├─── Jika REJECTED ─────────────────────┐
-    │                                        │
-    │   [3a] Update kontribusi_soal:         │
-    │     - status = 'REJECTED'              │
-    │     - review_note, reviewed_by,        │
-    │       reviewed_at                      │
-    │   Return response 200                  │
-    │                                        │
-    └─── Jika APPROVED ─────────────────────┐
-                                             │
-        [3b] Validasi: bank_soal_id wajib!   │
-          │                                  │
-        [3c] Transaction:                    │
-          │                                  │
-          │  ① CREATE record baru di         │
-          │    tabel `soal`:                  │
-          │    - Copy semua field dari        │
-          │      kontribusi (pertanyaan,      │
-          │      opsi, jawaban, gambar, dll)  │
-          │    - bank_soal_id = dari body     │
-          │    - created_by_admin = admin ID  │
-          │                                  │
-          │  ② UPDATE kontribusi_soal:        │
-          │    - status = 'APPROVED'          │
-          │    - soal_id = ID soal baru (①)   │
-          │    - review_note, reviewed_by,    │
-          │      reviewed_at                  │
-          │                                  │
-        Return response 200 + data soal baru │
-```
-
-### Pseudocode untuk Approve
-
-```typescript
-const result = await prisma.$transaction(async (tx) => {
-  // ① Copy ke tabel Soal
-  const soalBaru = await tx.soal.create({
-    data: {
-      bank_soal_id: body.bank_soal_id,
-      kategori_soal_id: kontribusi.kategori_soal_id,
-      jenis_soal_id: kontribusi.jenis_soal_id,
-      level: kontribusi.level,
-      pertanyaan: kontribusi.pertanyaan,
-      pertanyaan_gambar: kontribusi.pertanyaan_gambar,
-      opsi_a: kontribusi.opsi_a,
-      opsi_a_gambar: kontribusi.opsi_a_gambar,
-      opsi_b: kontribusi.opsi_b,
-      opsi_b_gambar: kontribusi.opsi_b_gambar,
-      opsi_c: kontribusi.opsi_c,
-      opsi_c_gambar: kontribusi.opsi_c_gambar,
-      opsi_d: kontribusi.opsi_d,
-      opsi_d_gambar: kontribusi.opsi_d_gambar,
-      opsi_e: kontribusi.opsi_e,
-      opsi_e_gambar: kontribusi.opsi_e_gambar,
-      jawaban_benar: kontribusi.jawaban_benar,
-      pembahasan: kontribusi.pembahasan,
-      pembahasan_gambar: kontribusi.pembahasan_gambar,
-      created_by_admin: adminId,
-    }
-  });
-
-  // ② Update status kontribusi
-  await tx.kontribusiSoal.update({
-    where: { id: kontribusiId },
-    data: {
-      status: 'APPROVED',
-      soal_id: soalBaru.id,
-      reviewed_by: adminId,
-      review_note: body.review_note ?? null,
-      reviewed_at: new Date(),
-    }
-  });
-
-  return soalBaru;
-});
-```
-
----
-
-## TASK 7.7: Unit Test Fase 7
-
-### File Target
-Buat file baru: `backend/src/__tests__/sosial-pelaporan.test.ts`
-
-### Test Cases Minimum
-
-```typescript
-describe('Laporan Soal', () => {
-  it('harus berhasil mengirim laporan soal', async () => { ... });
-  it('harus menolak jika soal tidak ditemukan', async () => { ... });
-  it('harus menolak laporan duplikat (soal + jenis sama)', async () => { ... });
-});
-
-describe('Admin Review Laporan', () => {
-  it('harus berhasil mengubah status laporan', async () => { ... });
-  it('harus menolak jika laporan tidak ditemukan', async () => { ... });
-});
-
-describe('Kontribusi Soal', () => {
-  it('harus berhasil mengirim kontribusi soal', async () => { ... });
-  it('harus menolak jika kategori/jenis tidak valid', async () => { ... });
-});
-
-describe('Admin Review Kontribusi', () => {
-  it('harus copy ke tabel soal jika APPROVED', async () => {
-    // Assert: prisma.soal.create dipanggil dengan data yang dicopy
-    // Assert: kontribusi.soal_id = soal baru
-  });
-  it('harus menolak approve tanpa bank_soal_id', async () => { ... });
-  it('harus update status ke REJECTED tanpa copy', async () => { ... });
-});
-```
-
-### Pola Mock yang Digunakan
-
-```typescript
-// ✅ Pola yang sudah terbukti tidak error TypeScript:
-jest.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-  return callback(prisma);
-});
-jest.spyOn(prisma.soal, 'create').mockResolvedValue({ id: 999, ... } as any);
-jest.spyOn(prisma.kontribusiSoal, 'update').mockResolvedValue({} as any);
-```
-
----
-
-## Dimana Menambahkan Kode (Fase 7)
-
-| Apa | File |
-|-----|------|
-| Validator | `backend/src/validators/sosial.validator.ts` **(NEW)** |
-| Controller Laporan | `backend/src/controllers/laporan-soal.controller.ts` **(NEW)** |
-| Controller Kontribusi | `backend/src/controllers/kontribusi-soal.controller.ts` **(NEW)** |
-| Route Laporan (User) | `backend/src/routes/laporan-soal.routes.ts` **(NEW)** |
-| Route Kontribusi (User) | `backend/src/routes/kontribusi-soal.routes.ts` **(NEW)** |
-| Route Admin Laporan | `backend/src/routes/admin-laporan.routes.ts` **(NEW)** |
-| Route Admin Kontribusi | `backend/src/routes/admin-kontribusi.routes.ts` **(NEW)** |
-| Register di Router Utama | `backend/src/routes/index.ts` (tambahkan import & mount) |
-| Unit Test | `backend/src/__tests__/sosial-pelaporan.test.ts` **(NEW)** |
-
----
----
-
-# FASE 8: KOMPETISI & LEADERBOARDS 🏆
-
-## Deskripsi Umum
-
-Fase ini mengimplementasikan fitur **perbandingan skor** antar user. Terdapat dua jenis leaderboard:
-
-1. **Leaderboard Global**: Ranking semua user berdasarkan `skor_total` tertinggi pada ujian tertentu.
-2. **Leaderboard Pesaing Formasi**: Ranking user yang mendaftar di **instansi + formasi yang sama** — sehingga user bisa melihat posisinya di antara "pesaing nyata" CPNS.
-
----
-
-## Checklist Tugas Fase 8
-
-- [ ] **Task 8.1**: Endpoint `GET /leaderboard/global` — Ranking global per ujian
-- [ ] **Task 8.2**: Endpoint `GET /leaderboard/formasi` — Ranking antar pesaing se-formasi
-- [ ] **Task 8.3**: Unit Test untuk kedua endpoint
-
----
-
-## TASK 8.1: Endpoint `GET /leaderboard/global`
-
-### Tujuan
-Menampilkan ranking user berdasarkan **skor_total tertinggi** pada ujian tertentu.
-
-### Request
-
-```
-GET /api/leaderboard/global?ujian_id=1&page=1&limit=20
-Authorization: Bearer <user_token>
-```
-
-| Query Param | Tipe | Wajib | Default | Keterangan |
-|-------------|------|-------|---------|------------|
-| `ujian_id` | number | ✅ | - | ID ujian yang ingin dilihat |
-| `page` | number | ❌ | 1 | Halaman |
-| `limit` | number | ❌ | 20 | Jumlah per halaman |
-
-### Alur Logika
-
-```typescript
-// 1. Untuk setiap user, ambil skor_total TERTINGGI pada ujian ini
-const rankings = await prisma.hasilUjian.findMany({
-  where: {
-    ujian_id: Number(req.query.ujian_id),
-    status: 'SELESAI',  // Hanya yang sudah selesai
-  },
-  select: {
-    user_id: true,
-    skor_total: true,
-    skor_tiu: true,
-    skor_twk: true,
-    skor_tkp: true,
-    is_lulus: true,
-    waktu_selesai: true,
-    durasi_detik: true,
-    user: { select: { id: true, nama: true, avatar: true } },
-  },
-  orderBy: [
-    { skor_total: 'desc' },
-    { durasi_detik: 'asc' },  // Tie-breaker: durasi lebih cepat = ranking lebih tinggi
-  ],
-  distinct: ['user_id'],  // Hanya skor tertinggi per user
-  skip,
-  take: limit,
-});
-```
-
-> **⚠️ CATATAN tentang `distinct`**: Prisma `distinct` mengambil row pertama per `user_id` setelah di-sort. Karena kita sort `skor_total desc`, maka otomatis yang terambil adalah skor tertinggi tiap user.
-
-### Response
-
-```json
-{
-  "success": true,
-  "message": "Success",
-  "data": [
-    {
-      "ranking": 1,
-      "user": { "id": 5, "nama": "Andi", "avatar": null },
-      "skor_total": 420,
-      "skor_tiu": 140,
-      "skor_twk": 130,
-      "skor_tkp": 150,
-      "is_lulus": true,
-      "durasi_detik": 4200
-    },
-    {
-      "ranking": 2,
-      "user": { "id": 12, "nama": "Budi", "avatar": null },
-      "skor_total": 415,
-      "skor_tiu": 135,
-      "skor_twk": 120,
-      "skor_tkp": 160,
-      "is_lulus": true,
-      "durasi_detik": 5100
-    }
-  ],
-  "meta": { "page": 1, "limit": 20, "total": 150, "totalPages": 8 }
-}
-```
-
-### Tips: Tambahkan Nomor Ranking
-
-```typescript
-const withRanking = rankings.map((item, index) => ({
-  ranking: skip + index + 1,  // Nomor ranking berdasarkan posisi + offset paginasi
-  ...item,
-}));
-```
-
----
-
-## TASK 8.2: Endpoint `GET /leaderboard/formasi`
-
-### Tujuan
-Menampilkan ranking user yang mendaftar di **instansi dan formasi yang sama** dengan user yang sedang login. Ini meniru fitur "lihat pesaing saya" pada aplikasi CPNS populer.
-
-### Request
-
-```
-GET /api/leaderboard/formasi?ujian_id=1&page=1&limit=20
-Authorization: Bearer <user_token>
-```
-
-### Alur Logika (Step-by-Step)
-
-```
-[1] Ambil biodata user yang login:
-    │   const biodata = await prisma.biodataUser.findUnique({
-    │     where: { user_id: userId }
-    │   });
-    │
-[2] Validasi: Apakah user sudah mengisi instansi_id DAN formasi_id?
-    │   → Jika belum, return 400: "Lengkapi biodata (instansi & formasi) terlebih dahulu"
-    │
-[3] Cari semua user_id yang memiliki instansi & formasi yang sama:
-    │   const pesaing = await prisma.biodataUser.findMany({
-    │     where: {
-    │       instansi_id: biodata.instansi_id,
-    │       formasi_id: biodata.formasi_id,
-    │     },
-    │     select: { user_id: true }
-    │   });
-    │   const pesaingIds = pesaing.map(p => p.user_id);
-    │
-[4] Query leaderboard seperti Task 8.1, tapi tambah filter:
-    │   where: {
-    │     ujian_id: ...,
-    │     status: 'SELESAI',
-    │     user_id: { in: pesaingIds },  // ← ini kuncinya!
-    │   }
-    │
-[5] Return response dengan ranking + informasi formasi
-```
-
-### Response
-
-```json
-{
-  "success": true,
-  "message": "Success",
-  "data": {
-    "formasi_info": {
-      "instansi": "Kementerian Keuangan",
-      "jabatan": "Analis Kebijakan",
-      "jumlah_pesaing": 42
-    },
-    "rankings": [
-      {
-        "ranking": 1,
-        "user": { "id": 5, "nama": "Andi" },
-        "skor_total": 420,
-        "is_lulus": true
-      }
-    ]
-  },
-  "meta": { "page": 1, "limit": 20, "total": 42, "totalPages": 3 }
-}
-```
-
----
-
-## TASK 8.3: Unit Test Fase 8
-
-### File Target
-Buat file baru: `backend/src/__tests__/leaderboard.test.ts`
-
-### Test Cases Minimum
-
-```typescript
-describe('Leaderboard Global', () => {
-  it('harus menampilkan ranking berdasarkan skor_total tertinggi', async () => {
-    // Mock hasilUjian.findMany → sorted by skor_total desc
-    // Assert: ranking[0].skor_total >= ranking[1].skor_total
-  });
-  it('harus menolak jika ujian_id tidak diberikan', async () => { ... });
-});
-
-describe('Leaderboard Formasi', () => {
-  it('harus hanya menampilkan user dengan instansi & formasi yang sama', async () => {
-    // Mock biodataUser.findUnique → { instansi_id: 1, formasi_id: 2 }
-    // Mock biodataUser.findMany → list of user_ids
-    // Assert: setiap ranking item user_id ada di pesaingIds
-  });
-  it('harus menolak jika user belum mengisi biodata', async () => {
-    // Mock biodataUser.findUnique → null
-    // Assert: HTTP 400
-  });
-  it('harus menolak jika instansi/formasi belum diisi', async () => {
-    // Mock biodataUser.findUnique → { instansi_id: null, formasi_id: null }
-    // Assert: HTTP 400
-  });
-});
-```
-
----
-
-## Dimana Menambahkan Kode (Fase 8)
-
-| Apa | File |
-|-----|------|
-| Validator | `backend/src/validators/leaderboard.validator.ts` **(NEW)** |
-| Controller | `backend/src/controllers/leaderboard.controller.ts` **(NEW)** |
-| Route | `backend/src/routes/leaderboard.routes.ts` **(NEW)** |
-| Register di Router Utama | `backend/src/routes/index.ts` (tambahkan import & mount) |
-| Unit Test | `backend/src/__tests__/leaderboard.test.ts` **(NEW)** |
-
----
----
-
-# CATATAN PENTING & SARAN PRAKTIS (BEST PRACTICES)
-
-## 1. 🔒 HATI-HATI PADA ENGINE UJIAN (Fase 5)
-Jangan pernah meletakan state "Berapa lama waktu tersisa" hanya di Frontend/Browser karena mudah diretas. Selalu validasi `waktu_mulai` & `durasi_ujian` berpedoman ke **backend timestamp**. Ini sudah dihandle di controller `heartbeat()` dan `checkAndHandleTimeout()`.
-
-## 2. 📄 PAGINASI
-Gunakan Prisma `skip` & `take`, manfaatkan utilitas `parsePagination()` dari `backend/src/utils/pagination.ts` di setiap request `GET` yang mengembalikan daftar (list laporan, list kontribusi, leaderboard, dll). Selalu gunakan `paginatedResponse()` dari `response.ts` untuk format response.
-
-## 3. 🖼️ ISOLATE DATABASE & IMAGE
-Gambar soal, kontribusi, dan laporan disimpan di folder `uploads/...` yang dikonfigurasi di `config/constants.ts`. Pastikan Express sudah menserve folder ini secara statis:
+File `app.ts` / `index.ts` utama belum menambahkan baris:
 ```typescript
 app.use('/static', express.static('uploads'));
 ```
-Ini memungkinkan frontend mengakses gambar via URL: `/static/laporan/filename.jpg`.
+Tanpa ini, gambar soal, kontribusi, dan screenshot laporan **tidak bisa diakses oleh frontend**.
 
-## 4. 🗑️ SOFT DELETE
-Kolom `is_active` digunakan untuk Soft Deletion. Jangan pernah `DELETE` record soal secara permanen karena bisa merusak foreign key pada `jawaban_ujian` dan `hasil_ujian`. Gunakan:
-```typescript
-await prisma.soal.update({
-  where: { id },
-  data: { is_active: false }
-});
+### 3. 🟡 Endpoint Daftar Ujian Belum Memfilter `peruntukan` (FREE/PREMIUM)
+
+Saat user FREE mengakses daftar ujian, backend harus memfilter berdasarkan `peruntukan` ujian (`FREE` atau `ALL`). User PREMIUM bisa mengakses semua.
+
+### 4. 🟢 Penambahan `jumlah_kosong` di Response `selesaiUjian`
+
+Field `jumlah_kosong` pada `HasilUjian` belum dihitung di endpoint `POST /ujian/selesai`. Ini penting untuk tampilan ringkasan pada frontend.
+
+---
+---
+
+# BAGIAN 2: TODOLIST IMPLEMENTASI FRONTEND
+
+## Informasi Penting Sebelum Mulai
+
+### Tech Stack yang Direkomendasikan
+
+| Platform | Framework | Bahasa | State Management |
+|----------|-----------|--------|-----------------|
+| **Web** | Next.js 14+ (App Router) atau Vite + React | TypeScript | Zustand / React Query |
+| **Mobile** | React Native + Expo | TypeScript | Zustand / React Query |
+
+### Base URL API
+```
+http://localhost:3000/api
 ```
 
-## 5. 🧪 POLA MOCK TESTING YANG BENAR
-Selalu gunakan pola ini untuk mock transaksi Prisma agar **tidak ada error TypeScript**:
-```typescript
-// ✅ BENAR
-jest.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-  return callback(prisma);
-});
+### Autentikasi
+Semua endpoint (kecuali login/register) memerlukan header:
+```
+Authorization: Bearer <token>
+```
+Token didapat dari response `POST /api/auth/login`.
 
-// ❌ SALAH — menyebabkan error "never"
-jest.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-  return callback({ soal: { create: jest.fn() } });
-});
+### Gambar / Aset Statis
+```
+http://localhost:3000/static/<path>
+```
+Contoh: `http://localhost:3000/static/soal/1712905200000-123.jpg`
+
+---
+
+## ARSITEKTUR HALAMAN FRONTEND
+
+```
+📱 USER APP (Mobile & Web)
+├── Auth
+│   ├── Login
+│   ├── Register
+│   └── Lupa Password (opsional)
+├── Beranda / Dashboard
+│   ├── Daftar Ujian Tersedia
+│   ├── Ringkasan Statistik (TIU/TWK/TKP)
+│   └── Ranking Singkat
+├── Simulasi Ujian
+│   ├── Detail Ujian (sebelum mulai)
+│   ├── Layar Ujian (timer, navigasi soal, pilih jawaban)
+│   ├── Konfirmasi Submit
+│   └── Hasil & Pembahasan
+├── Riwayat Ujian
+│   ├── Daftar Riwayat
+│   └── Detail Hasil + Pembahasan
+├── Profiling / Statistik
+│   ├── Grafik Kompetensi per Kategori
+│   └── Tingkat Penguasaan per Jenis Soal
+├── Leaderboard
+│   ├── Global
+│   └── Pesaing Formasi
+├── Sosial
+│   ├── Laporkan Soal
+│   ├── Kontribusikan Soal
+│   └── Status Kontribusi Saya
+└── Profil
+    ├── Edit Biodata
+    └── Pilih Instansi & Formasi
+
+🖥️ ADMIN DASHBOARD (Web Only)
+├── Auth (Login Admin)
+├── Dashboard Ringkasan
+├── Master Data (CRUD)
+│   ├── Kategori Soal
+│   ├── Jenis Soal
+│   ├── Instansi & Formasi
+│   └── Pendidikan & Jurusan
+├── Backoffice
+│   ├── Bank Soal
+│   ├── Soal (CRUD + Upload Gambar)
+│   └── Paket Ujian
+├── Review
+│   ├── Laporan Soal (list + action DITINJAU/DIPERBAIKI/DITOLAK)
+│   └── Kontribusi Soal (list + action APPROVE/REJECT)
+└── Monitoring
+    └── (opsional: statistik global)
 ```
 
 ---
 
-# Definisi "Selesai" untuk Issue Ini
+## FASE F1: AUTENTIKASI USER
 
-## Fase 7 dianggap DONE jika:
-1. ✅ User bisa mengirim laporan soal (dengan/tanpa screenshot).
-2. ✅ Admin bisa melihat daftar laporan dan mengubah statusnya.
-3. ✅ User bisa mengirim kontribusi soal.
-4. ✅ Admin bisa approve kontribusi → data otomatis dicopy ke tabel `soal`.
-5. ✅ Admin bisa reject kontribusi.
-6. ✅ Semua unit test PASSED.
-7. ✅ `tsc --noEmit` menghasilkan **0 error**.
+### Halaman Login
+- [ ] Buat halaman Login dengan form Email + Password
+- [ ] Panggil `POST /api/auth/login` dengan body `{ email, password }`
+- [ ] Simpan `token` dari response ke `localStorage` (web) atau `AsyncStorage` (mobile)
+- [ ] Redirect ke Dashboard setelah login sukses
+- [ ] Tampilkan pesan error jika login gagal
 
-## Fase 8 dianggap DONE jika:
-1. ✅ Leaderboard global menampilkan ranking per ujian berdasarkan skor tertinggi.
-2. ✅ Leaderboard formasi hanya menampilkan pesaing se-instansi + se-formasi.
-3. ✅ Error yang tepat jika user belum mengisi biodata.
-4. ✅ Semua unit test PASSED.
-5. ✅ `tsc --noEmit` menghasilkan **0 error**.
+#### Contoh Request & Response
+```
+POST /api/auth/login
+Body: { "email": "user@test.com", "password": "123456" }
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1...",
+    "user": { "id": 1, "nama": "Budi", "email": "user@test.com", "kategori": "FREE" }
+  }
+}
+```
+
+### Halaman Register
+- [ ] Buat halaman Register dengan form Nama, Email, Password, Konfirmasi Password
+- [ ] Panggil `POST /api/auth/register` dengan body `{ nama, email, password }`
+- [ ] Redirect ke Login setelah registrasi sukses
+- [ ] Validasi di sisi client: Email format, Password minimal 6 karakter, Password match
+
+### Auth Guard / Protected Route
+- [ ] Buat middleware/HOC yang memeriksa token di storage
+- [ ] Jika tidak ada token atau token expired (401 dari API), redirect ke Login
+- [ ] Pasang di semua halaman kecuali Login & Register
+
+---
+
+## FASE F2: DASHBOARD / BERANDA USER
+
+### Endpoint yang Dipakai
+| Endpoint | Kegunaan |
+|----------|----------|
+| `GET /api/ujian` | Daftar ujian tersedia **(PERLU DIBUAT DI BACKEND DULU)** |
+| `GET /api/user/statistik` | Statistik kompetensi user **(PERLU DIBUAT DI BACKEND DULU)** |
+
+### Tampilan Dashboard
+- [ ] **Hero Section**: Sapaan "Halo, [Nama User]!" + ringkasan statistik
+- [ ] **Kartu Statistik**: 3 kartu untuk TIU, TWK, TKP
+  - Skor rata-rata
+  - Persentase benar
+  - Total ujian yang sudah dikerjakan
+- [ ] **Daftar Ujian Tersedia**: Tampilkan daftar ujian dalam bentuk card:
+  - Nama ujian
+  - Tipe ujian (TRYOUT / LATIHAN / QUIZ)
+  - Durasi (dalam menit)
+  - Jumlah soal
+  - Badge "FREE" / "PREMIUM"
+  - Tombol "Mulai Ujian"
+
+---
+
+## FASE F3: PROFIL & BIODATA USER
+
+### Endpoint yang Dipakai
+| Endpoint | Kegunaan |
+|----------|----------|
+| `GET /api/user/biodata` | Ambil data biodata user |
+| `PUT /api/user/biodata` | Simpan / update biodata |
+| `GET /api/master/instansi` | Daftar instansi (untuk dropdown) |
+| `GET /api/master/formasi?instansi_id=X` | Daftar formasi berdasarkan instansi |
+| `GET /api/master/tingkat-pendidikan` | Daftar tingkat pendidikan |
+| `GET /api/master/jurusan` | Daftar jurusan |
+
+### Halaman Edit Biodata
+- [ ] Form dengan field berikut (semua opsional kecuali nama_lengkap):
+  - `nama_lengkap` (text)
+  - `no_hp` (text)
+  - `tanggal_lahir` (date picker)
+  - `jenis_kelamin` (radio: LAKI_LAKI / PEREMPUAN)
+  - `alamat` (textarea)
+  - `provinsi`, `kota` (text)
+  - `tingkat_pendidikan_id` (dropdown dari API)
+  - `jurusan_id` (dropdown dari API)
+  - `nama_universitas` (text)
+  - `tahun_lulus` (number)
+  - `instansi_id` (dropdown dari API)
+  - `formasi_id` (dropdown, muncul setelah instansi dipilih)
+- [ ] **Cascading Dropdown**: Ketika user memilih Instansi, formasi harus di-reload
+- [ ] Kirim data ke `PUT /api/user/biodata`
+
+> **⚠️ PENTING**: Biodata instansi & formasi **WAJIB DIISI** agar fitur Leaderboard Formasi bisa digunakan.
+
+---
+
+## FASE F4: SIMULASI UJIAN (KRITIS - PALING KOMPLEKS)
+
+### Endpoint yang Dipakai
+| Endpoint | Kegunaan |
+|----------|----------|
+| `GET /api/ujian/:id` | Detail ujian **(PERLU DIBUAT DI BACKEND)** |
+| `POST /api/ujian/mulai` | Mulai ujian baru |
+| `POST /api/ujian/heartbeat` | Sinkronisasi waktu setiap 30 detik |
+| `POST /api/ujian/simpan-jawaban` | Simpan jawaban user |
+| `POST /api/ujian/selesai` | Akhiri ujian dan hitung skor |
+
+### Alur Lengkap Simulasi
+
+```
+User klik "Mulai Ujian"
+    │
+    ▼
+[1] Panggil POST /ujian/mulai
+    │   Body: { ujian_id: X }
+    │   Response: { hasil_ujian_id, daftar_soal[], sisa_waktu }
+    │
+    ▼
+[2] Tampilkan Layar Ujian:
+    │   ┌──────────────────────────────────┐
+    │   │ ⏱️ Timer: 01:59:00              │
+    │   │                                  │
+    │   │ [Soal 1/100]                     │
+    │   │ Pertanyaan...                    │
+    │   │ (gambar jika ada)                │
+    │   │                                  │
+    │   │ ○ A. Opsi A                      │
+    │   │ ● B. Opsi B  ← dipilih          │
+    │   │ ○ C. Opsi C                      │
+    │   │ ○ D. Opsi D                      │
+    │   │ ○ E. Opsi E                      │
+    │   │                                  │
+    │   │ [🔖 Ragu] [◀ Prev] [Next ▶]     │
+    │   │                                  │
+    │   │ Navigasi Soal:                   │
+    │   │ [1✅][2✅][3⬜][4🔖][5⬜]...     │
+    │   │                                  │
+    │   │ [Selesai Ujian]                  │
+    │   └──────────────────────────────────┘
+    │
+    ▼
+[3] Setiap kali user memilih jawaban:
+    │   → Panggil POST /ujian/simpan-jawaban
+    │     Body: { hasil_ujian_id, ujian_soal_id, jawaban: "B", is_ragu: false }
+    │
+[4] Setiap 30 detik (setInterval):
+    │   → Panggil POST /ujian/heartbeat
+    │     Body: { hasil_ujian_id }
+    │     Response: { sisa_waktu_detik, status }
+    │     → Jika status = "TIMEOUT", otomatis tutup ujian
+    │     → Update timer dari response server (JANGAN hitung dari client!)
+    │
+[5] Tombol "Selesai Ujian" diklik:
+    │   → Tampilkan Konfirmasi: "Yakin ingin mengakhiri ujian?"
+    │   → Jika Ya:
+    │     Panggil POST /ujian/selesai
+    │     Body: { hasil_ujian_id }
+    │   → Tampilkan Halaman Hasil
+    │
+    ▼
+[6] Halaman Hasil Ujian:
+    │   ┌──────────────────────────────────┐
+    │   │ 📊 HASIL UJIAN                   │
+    │   │                                  │
+    │   │ Status: ✅ LULUS / ❌ TIDAK LULUS │
+    │   │ Skor Total: 380 / 500            │
+    │   │                                  │
+    │   │ TIU:  140 / 175  (PG: 80) ✅     │
+    │   │ TWK:  120 / 150  (PG: 65) ✅     │
+    │   │ TKP:  120 / 175  (PG: 166) ❌    │
+    │   │                                  │
+    │   │ Benar: 65  Salah: 20  Kosong: 15 │
+    │   │ Durasi: 1 jam 45 menit           │
+    │   │                                  │
+    │   │ [Lihat Pembahasan] [Kembali]     │
+    │   └──────────────────────────────────┘
+```
+
+### Komponen UI yang Dibutuhkan
+- [ ] **Timer Countdown**: Menampilkan sisa waktu (format MM:SS atau HH:MM:SS)
+  - ⚠️ Timer di-sync dari backend via heartbeat, BUKAN dihitung sendiri di client
+  - Jika sisa_waktu <= 300 detik (5 menit), warnai timer merah + animasi berkedip
+- [ ] **Kartu Soal**: Menampilkan pertanyaan + opsi A-E
+  - Jika `pertanyaan_gambar` atau `opsi_X_gambar` terisi, tampilkan gambar dari `/static/...`
+- [ ] **Navigasi Soal**: Grid tombol nomor soal
+  - Warna hijau = sudah dijawab
+  - Warna kuning = ditandai ragu (`is_ragu = true`)
+  - Warna abu-abu = belum dijawab
+- [ ] **Tombol Ragu-Ragu**: Toggle flag `is_ragu` saat menyimpan jawaban
+- [ ] **Konfirmasi Submit**: Modal dialog sebelum menyelesaikan ujian
+- [ ] **Blocking Navigation**: Cegah user keluar halaman ujian (browser back button, refresh)
+
+---
+
+## FASE F5: RIWAYAT UJIAN & PEMBAHASAN
+
+### Endpoint yang Dipakai
+| Endpoint | Kegunaan |
+|----------|----------|
+| `GET /api/user/riwayat-ujian` | Daftar riwayat ujian **(PERLU DIBUAT DI BACKEND)** |
+| `GET /api/user/riwayat-ujian/:id` | Detail hasil + jawaban + pembahasan **(PERLU DIBUAT DI BACKEND)** |
+
+### Halaman Daftar Riwayat
+- [ ] Tampilkan list riwayat ujian user (paginasi):
+  - Nama ujian
+  - Tanggal mengerjakan
+  - Skor total
+  - Status: LULUS / GAGAL / TIMEOUT
+  - Tombol "Lihat Detail"
+
+### Halaman Detail & Pembahasan
+- [ ] Tampilkan ringkasan skor (TIU/TWK/TKP) + status lulus/gagal
+- [ ] Daftar soal + jawaban user vs jawaban benar:
+  - ✅ Hijau = jawaban benar
+  - ❌ Merah = jawaban salah
+  - ⬜ Abu = tidak dijawab
+- [ ] Tampilkan **pembahasan** per soal (teks + gambar jika ada)
+- [ ] Filter berdasarkan kategori: TIU / TWK / TKP
+- [ ] Filter berdasarkan status: Benar / Salah / Kosong
+
+---
+
+## FASE F6: STATISTIK & PROFILING KOMPETENSI
+
+### Endpoint yang Dipakai
+| Endpoint | Kegunaan |
+|----------|----------|
+| `GET /api/user/statistik` | Data statistik kompetensi user **(PERLU DIBUAT DI BACKEND)** |
+
+### Tampilan Statistik
+- [ ] **Chart Radar/Spider**: Visualisasi kekuatan per kategori (TIU, TWK, TKP)
+- [ ] **Progress Bar per Jenis Soal**: Menampilkan tingkat penguasaan:
+  - Label: Silogisme, Analogi Verbal, Deret Angka, dll.
+  - Progress: 0-100%
+  - Badge tingkat: BELUM / RENDAH / SEDANG / TINGGI / MAHIR
+  - Warna:
+    - BELUM = Abu
+    - RENDAH = Merah
+    - SEDANG = Kuning
+    - TINGGI = Biru
+    - MAHIR = Hijau
+- [ ] **Kartu Ringkasan**:
+  - Total ujian dikerjakan
+  - Skor tertinggi & terendah per kategori
+  - Rata-rata skor
+
+---
+
+## FASE F7: LEADERBOARD
+
+### Endpoint yang Dipakai
+| Endpoint | Kegunaan |
+|----------|----------|
+| `GET /api/leaderboard/global?ujian_id=X` | Ranking global |
+| `GET /api/leaderboard/formasi?ujian_id=X` | Ranking pesaing formasi |
+
+### Halaman Leaderboard
+- [ ] **Tab / Switch**: Global vs Pesaing Formasi
+- [ ] **Dropdown**: Pilih ujian (ambil dari daftar ujian)
+- [ ] **Tabel Ranking**:
+  - Nomor ranking
+  - Nama user (dari `biodata.nama_lengkap`)
+  - Skor Total
+  - Status Lulus/Gagal
+  - Durasi pengerjaan
+- [ ] **Highlight user sendiri** di dalam tabel (baris berbeda warna)
+- [ ] **Informasi Formasi** (khusus tab Formasi):
+  - Nama Instansi + Jabatan
+  - Jumlah pesaing
+
+---
+
+## FASE F8: FITUR SOSIAL (LAPORAN & KONTRIBUSI)
+
+### Laporkan Soal
+- [ ] Saat user sedang melihat soal (di ujian atau pembahasan), tampilkan tombol "🚩 Laporkan"
+- [ ] Modal form laporan:
+  - `jenis_laporan` (dropdown: TYPO, JAWABAN_SALAH, dll.)
+  - `deskripsi` (textarea, min 10 karakter)
+  - `bukti_screenshot` (upload gambar, opsional)
+- [ ] Panggil `POST /api/laporan-soal` (form-data)
+- [ ] Tampilkan notifikasi sukses
+
+### Kontribusi Soal
+- [ ] Halaman form membuat soal:
+  - Pilih Kategori (TIU/TWK/TKP)
+  - Pilih Jenis Soal (dropdown, tergantung kategori)
+  - Level (MUDAH/SEDANG/SULIT)
+  - Pertanyaan (teks + upload gambar)
+  - Opsi A–E (teks + upload gambar masing-masing)
+  - Jawaban Benar (A/B/C/D/E)
+  - Pembahasan (opsional)
+- [ ] Panggil `POST /api/kontribusi-soal` (form-data, multi-file)
+- [ ] Tampilkan notifikasi sukses
+
+### Status Kontribusi Saya
+- [ ] Daftar kontribusi milik user (paginasi)
+- [ ] Status badge: PENDING (kuning), APPROVED (hijau), REJECTED (merah)
+- [ ] Jika ada `review_note`, tampilkan catatan dari admin
+
+---
+
+## FASE F9: ADMIN DASHBOARD (Khusus Web)
+
+### Login Admin
+- [ ] Panggil `POST /api/admin/auth/login`
+- [ ] Simpan token admin terpisah dari token user
+
+### Dashboard Overview
+- [ ] Jumlah total soal, user, ujian, laporan pending, kontribusi pending
+
+### Master Data CRUD
+- [ ] Tabel + Form untuk: Kategori Soal, Jenis Soal, Instansi, Formasi, Pendidikan, Jurusan
+- [ ] Gunakan endpoint `GET/POST/PUT/DELETE /api/admin/master/...`
+
+### Backoffice Soal
+- [ ] CRUD Bank Soal: `GET/POST /api/admin/backoffice/bank-soal`
+- [ ] CRUD Soal: `GET/POST /api/admin/backoffice/soal` (dengan upload gambar multi-field)
+- [ ] CRUD Paket Ujian: `GET/POST /api/admin/backoffice/ujian`
+
+### Review Laporan Soal
+- [ ] Tabel daftar laporan: `GET /api/admin/backoffice/laporan-soal?status=PENDING`
+- [ ] Filter by status
+- [ ] Tombol aksi per laporan:
+  - "Tinjau" → `PATCH /api/admin/backoffice/laporan-soal/:id` `{ status: "DITINJAU" }`
+  - "Perbaiki" → `{ status: "DIPERBAIKI", review_note: "..." }`
+  - "Tolak"   → `{ status: "DITOLAK", review_note: "..." }`
+
+### Review Kontribusi Soal
+- [ ] Tabel daftar kontribusi: `GET /api/admin/backoffice/kontribusi-soal?status=PENDING`
+- [ ] Preview soal kontribusi sebelum approve
+- [ ] Tombol aksi:
+  - "Approve" → `PATCH /api/admin/backoffice/kontribusi-soal/:id` `{ status: "APPROVED", bank_soal_id: X }`
+    - Pilih Bank Soal tujuan (dropdown)
+  - "Reject"  → `{ status: "REJECTED", review_note: "..." }`
+
+---
+
+## CATATAN TEKNIS UNTUK DEVELOPER FRONTEND
+
+### 1. Penanganan Error dari API
+Semua error dari API selalu memiliki format:
+```json
+{
+  "success": false,
+  "message": "Pesan error",
+  "errors": [{ "field": "email", "message": "Email wajib diisi" }]
+}
+```
+Gunakan `response.success` untuk membedakan antara sukses dan gagal.
+
+### 2. Paginasi
+Response yang memiliki banyak data selalu mengandung `meta`:
+```json
+{
+  "success": true,
+  "data": [...],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 57,
+    "totalPages": 6
+  }
+}
+```
+Gunakan query parameter `?page=X&limit=Y` untuk navigasi halaman.
+
+### 3. Upload File (Multipart)
+Untuk endpoint yang menerima file, gunakan `FormData` dan jangan set `Content-Type` header (browser akan auto-set `multipart/form-data` + boundary).
+
+```javascript
+const formData = new FormData();
+formData.append('soal_id', '42');
+formData.append('jenis_laporan', 'TYPO');
+formData.append('deskripsi', 'Ada typo di pertanyaan');
+formData.append('bukti_screenshot', fileInput.files[0]);
+
+await fetch('/api/laporan-soal', {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${token}` },
+  // JANGAN set Content-Type!
+  body: formData,
+});
+```
+
+### 4. Tampilkan Gambar dari Server
+```html
+<img src="http://localhost:3000/static/soal/1712905200000-123456789.jpg" />
+```
+
+### 5. Timer Ujian (KRITIS)
+```javascript
+// ❌ SALAH — mudah diretas
+let sisaWaktu = 7200;
+setInterval(() => sisaWaktu--, 1000);
+
+// ✅ BENAR — sync dari server
+setInterval(async () => {
+  const res = await fetch('/api/ujian/heartbeat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ hasil_ujian_id }),
+  });
+  const data = await res.json();
+  setSisaWaktu(data.data.sisa_waktu_detik); // Update dari server
+  if (data.data.status === 'TIMEOUT') forceFinishExam();
+}, 30000);
+```
+
+### 6. Daftar Semua API Endpoint (Quick Reference)
+
+#### Auth
+| Method | Endpoint | Role |
+|--------|----------|------|
+| POST | `/api/auth/register` | Public |
+| POST | `/api/auth/login` | Public |
+| POST | `/api/admin/auth/login` | Public |
+
+#### User
+| Method | Endpoint | Role |
+|--------|----------|------|
+| GET | `/api/user/biodata` | User |
+| PUT | `/api/user/biodata` | User |
+
+#### Master Data (Read-Only untuk User)
+| Method | Endpoint | Role |
+|--------|----------|------|
+| GET | `/api/master/kategori-soal` | User |
+| GET | `/api/master/jenis-soal` | User |
+| GET | `/api/master/tingkat-pendidikan` | User |
+| GET | `/api/master/jurusan` | User |
+| GET | `/api/master/instansi` | User |
+| GET | `/api/master/formasi?instansi_id=X` | User |
+
+#### Ujian Engine
+| Method | Endpoint | Role |
+|--------|----------|------|
+| POST | `/api/ujian/mulai` | User |
+| POST | `/api/ujian/heartbeat` | User |
+| POST | `/api/ujian/simpan-jawaban` | User |
+| POST | `/api/ujian/selesai` | User |
+
+#### Sosial
+| Method | Endpoint | Role |
+|--------|----------|------|
+| POST | `/api/laporan-soal` | User |
+| POST | `/api/kontribusi-soal` | User |
+
+#### Leaderboard
+| Method | Endpoint | Role |
+|--------|----------|------|
+| GET | `/api/leaderboard/global?ujian_id=X` | User |
+| GET | `/api/leaderboard/formasi?ujian_id=X` | User |
+
+#### Admin Master
+| Method | Endpoint | Role |
+|--------|----------|------|
+| GET/POST/PUT/DELETE | `/api/admin/master/kategori-soal` | Admin |
+| GET/POST/PUT/DELETE | `/api/admin/master/jenis-soal` | Admin |
+| GET/POST/PUT/DELETE | `/api/admin/master/tingkat-pendidikan` | Admin |
+| GET/POST/PUT/DELETE | `/api/admin/master/jurusan` | Admin |
+| GET/POST/PUT/DELETE | `/api/admin/master/instansi` | Admin |
+| GET/POST/PUT/DELETE | `/api/admin/master/formasi` | Admin |
+
+#### Admin Backoffice
+| Method | Endpoint | Role |
+|--------|----------|------|
+| GET/POST | `/api/admin/backoffice/bank-soal` | Admin |
+| GET/POST | `/api/admin/backoffice/soal` | Admin |
+| GET/POST | `/api/admin/backoffice/ujian` | Admin |
+| GET/PATCH | `/api/admin/backoffice/laporan-soal` | Admin |
+| GET/PATCH | `/api/admin/backoffice/kontribusi-soal` | Admin |
+
+---
+
+# Definisi "Selesai" untuk Frontend
+
+## MVP (Minimum Viable Product)
+1. ✅ User bisa Register & Login
+2. ✅ User melihat daftar ujian dan memulai simulasi
+3. ✅ Timer berjalan & sync dari server
+4. ✅ User menjawab soal dan submit ujian
+5. ✅ Melihat hasil ujian (skor, lulus/gagal, pembahasan)
+6. ✅ Melihat riwayat ujian
+7. ✅ Edit biodata (pilih instansi & formasi)
+8. ✅ Melihat leaderboard
+
+## Full Version (Setelah MVP)
+1. ✅ Statistik & grafik kompetensi
+2. ✅ Laporan soal dengan upload bukti
+3. ✅ Kontribusikan soal baru
+4. ✅ Admin dashboard lengkap
+5. ✅ Responsive design (mobile-first)
