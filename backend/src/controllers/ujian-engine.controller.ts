@@ -442,6 +442,9 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
       };
     });
 
+    const jumlahDijawab = totalBenar + totalSalah;
+    const jumlahKosong = hasil.total_soal - jumlahDijawab;
+
     // 5. Transaction Update
     await prisma.$transaction(async (tx) => {
       // a. Update HasilUjian
@@ -455,8 +458,10 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
           skor_twk: skorTwk,
           skor_tkp: skorTkp,
           skor_total: skorTotal,
+          jumlah_dijawab: jumlahDijawab,
           jumlah_benar: totalBenar,
           jumlah_salah: totalSalah,
+          jumlah_kosong: jumlahKosong,
           is_lulus: isLulus
         }
       });
@@ -583,9 +588,10 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
       waktu_selesai: now,
       durasi_pengerjaan_detik: durasiActual,
       total_soal: hasil.total_soal,
-      jumlah_dijawab: statsKategori.TIU?.dijawab ?? 0 + (statsKategori.TWK?.dijawab ?? 0) + (statsKategori.TKP?.dijawab ?? 0),
+      jumlah_dijawab: (statsKategori.TIU?.dijawab ?? 0) + (statsKategori.TWK?.dijawab ?? 0) + (statsKategori.TKP?.dijawab ?? 0),
       jumlah_benar: totalBenar,
       jumlah_salah: totalSalah,
+      jumlah_kosong: jumlahKosong,
       skor_tiu: skorTiu,
       skor_twk: skorTwk,
       skor_tkp: skorTkp,
