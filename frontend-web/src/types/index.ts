@@ -149,6 +149,51 @@ export interface HasilUjianResponse {
   detail_kategori: KategoriSkor[];
 }
 
+// ===== Dashboard & Statistik =====
+export interface DashboardStatistik {
+  total_ujian: number;
+  skor_tertinggi: number;
+  rata_rata_skor: number;
+  persentase_lulus: number;
+  tren_skor: {
+    tanggal: string;
+    skor: number;
+    ujian_nama: string;
+  }[];
+}
+
+// ===== Riwayat Ujian =====
+export interface RiwayatUjianItem {
+  id: number;
+  ujian: {
+    id: number;
+    nama: string;
+    tipe: string;
+  };
+  skor_total: number;
+  is_lulus: boolean;
+  durasi_detik: number;
+  waktu_selesai: string;
+}
+
+export interface DetailRiwayatResponse extends HasilUjianResponse {
+  ujian_nama: string;
+  detail_soal: {
+    soal_id: number;
+    pertanyaan: string;
+    pertanyaan_gambar: string | null;
+    jawaban_user: string | null;
+    jawaban_benar: string;
+    is_benar: boolean;
+    pembahasan: string | null;
+    pembahasan_gambar: string | null;
+    opsi: {
+      label: string;
+      teks: string;
+    }[];
+  }[];
+}
+
 // ===== Leaderboard =====
 export interface LeaderboardEntry {
   ranking: number;

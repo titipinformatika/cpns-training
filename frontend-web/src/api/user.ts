@@ -1,5 +1,12 @@
 import api from './axios';
-import type { ApiResponse, BiodataUser } from '../types';
+import type { 
+  ApiResponse, 
+  PaginatedResponse,
+  BiodataUser, 
+  RiwayatUjianItem, 
+  DetailRiwayatResponse, 
+  DashboardStatistik 
+} from '../types';
 
 export const userApi = {
   getBiodata: () => 
@@ -9,13 +16,13 @@ export const userApi = {
     api.put<ApiResponse<BiodataUser>>('/user/biodata', data),
     
   getRiwayatUjian: (params?: { page?: number; limit?: number }) =>
-    api.get<ApiResponse<any[]>>('/user/riwayat-ujian', { params }),
+    api.get<PaginatedResponse<RiwayatUjianItem>>('/user/riwayat-ujian', { params }),
     
   getRiwayatDetail: (id: number) => 
-    api.get<ApiResponse<any>>(`/user/riwayat-ujian/${id}`),
+    api.get<ApiResponse<DetailRiwayatResponse>>(`/user/riwayat-ujian/${id}`),
     
   getStatistik: () => 
-    api.get<ApiResponse<any>>('/user/statistik'),
+    api.get<ApiResponse<DashboardStatistik>>('/user/statistik'),
     
   getKontribusiSaya: (params?: { page?: number }) =>
     api.get<ApiResponse<any[]>>('/user/kontribusi-soal', { params }),

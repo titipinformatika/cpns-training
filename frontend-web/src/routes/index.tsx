@@ -11,6 +11,9 @@ import DaftarUjianPage from '../pages/ujian/DaftarUjianPage';
 import DetailUjianPage from '../pages/ujian/DetailUjianPage';
 import SimulasiUjianPage from '../pages/ujian/SimulasiUjianPage';
 import HasilUjianPage from '../pages/ujian/HasilUjianPage';
+import UserDashboardPage from '../pages/dashboard/UserDashboardPage';
+import RiwayatUjianPage from '../pages/ujian/RiwayatUjianPage';
+import DetailRiwayatPage from '../pages/ujian/DetailRiwayatPage';
 import KontribusiSoalPage from '../pages/sosial/KontribusiSoalPage';
 import RiwayatKontribusiPage from '../pages/sosial/RiwayatKontribusiPage';
 import RiwayatLaporanPage from '../pages/sosial/RiwayatLaporanPage';
@@ -45,7 +48,9 @@ export function AppRoutes() {
 
       {/* Private Routes */}
       <Route element={<PrivateRoute />}>
-        <Route path="/dashboard" element={<div className="p-8 text-center text-2xl font-bold font-sans">Dashboard (Coming Soon)</div>} />
+        <Route path="/dashboard" element={<UserDashboardPage />} />
+        <Route path="/riwayat" element={<RiwayatUjianPage />} />
+        <Route path="/riwayat/:id" element={<DetailRiwayatPage />} />
         
         {/* Profil Section */}
         <Route path="/profil" element={<ProfilPage />} />
