@@ -1,637 +1,569 @@
-# 📋 AUDIT BACKEND + TODOLIST FRONTEND (Mobile & Web)
+# 🔍 AUDIT KUALITAS KODE & KEAMANAN BACKEND — CPNS TRAINING
+
+Hasil audit menyeluruh terhadap seluruh kode backend yang telah selesai (Fase 1-8).
+Dokumen ini berisi temuan, saran perbaikan, dan penambahan fitur yang siap dikerjakan oleh programmer junior.
 
 ---
 
-# BAGIAN 1: AUDIT & SARAN PERBAIKAN BACKEND
+## DAFTAR ISI
 
-## ✅ Status Penyelesaian Backend (Fase 1–8)
-
-| Fase | Nama | Status | Catatan |
-|------|------|--------|---------|
-| 1 | Persiapan Fondasi & Server | ✅ Done | Express, Prisma, Zod, Multer sudah terkonfigurasi |
-| 2 | Autentikasi & Otorisasi | ✅ Done | JWT User + Admin, Middleware Auth |
-| 3 | Manajemen Data Master | ✅ Done | CRUD Kategori, Jenis, Pendidikan, Jurusan, Instansi, Formasi, Biodata |
-| 4 | Inti Backoffice (Soal) | ✅ Done | Bank Soal, Paket Ujian, Pembuatan Soal + Upload Gambar |
-| 5 | Core Engine Simulasi Ujian | ✅ Done | Mulai, Heartbeat, Simpan Jawaban, Auto-Timeout |
-| 6 | Finalisasi & Kalkulasi Skor | ✅ Done | Submit Ujian, Skor TIU/TWK/TKP, Lulus/Gagal, Update Statistik |
-| 7 | Fitur Sosial & Pelaporan | ✅ Done | Laporan Soal, Kontribusi Soal, Admin Approval + Copy ke Soal |
-| 8 | Kompetisi & Leaderboards | ✅ Done | Leaderboard Global + Pesaing Formasi |
-
-**Kesimpulan:** Seluruh 8 fase dalam todolist backend telah **SELESAI** diimplementasikan.
+1. [🔴 KEAMANAN (SECURITY)](#-keamanan-security)
+2. [🟡 KUALITAS KODE (CODE QUALITY)](#-kualitas-kode-code-quality)
+3. [🟢 PENAMBAHAN FITUR (FEATURE ENHANCEMENTS)](#-penambahan-fitur-feature-enhancements)
+4. [🔵 INFRASTRUKTUR & DEVOPS](#-infrastruktur--devops)
 
 ---
 
-## ⚠️ SARAN PERBAIKAN BACKEND (Prioritas Tinggi)
+## 🔴 KEAMANAN (SECURITY)
 
-Berikut temuan dari audit kode yang **sangat disarankan** untuk dikerjakan sebelum memulai frontend:
+### SEC-01: Tidak Ada Rate Limiting ← KRITIS
+**File:** `backend/src/app.ts`
+**Masalah:** Endpoint login, register, dan refresh-token tidak memiliki rate limiter. Penyerang bisa melakukan brute-force password tanpa hambatan.
+**Dampak:** Serangan Brute Force, Denial of Service (DoS).
 
-### 1. 🔴 Endpoint User yang Belum Ada (Missing User-Facing API)
-
-Backend saat ini belum memiliki endpoint berikut yang **PASTI dibutuhkan oleh frontend**:
-
-| Endpoint yang Diperlukan | Kegunaan | Prioritas |
-|--------------------------|----------|-----------|
-| `GET /api/ujian` | Daftar ujian yang tersedia (untuk ditampilkan di homepage) | 🔴 Wajib |
-| `GET /api/ujian/:id` | Detail ujian sebelum memulai (info durasi, jumlah soal, dsb) | 🔴 Wajib |
-| `GET /api/user/riwayat-ujian` | Riwayat ujian user (daftar `HasilUjian` milik user) | 🔴 Wajib |
-| `GET /api/user/riwayat-ujian/:id` | Detail hasil ujian + pembahasan jawaban | 🔴 Wajib |
-| `GET /api/user/statistik` | Statistik kompetensi user (dari `StatistikUserKategori` & `StatistikUserJenis`) | 🔴 Wajib |
-| `GET /api/user/kontribusi-soal` | Daftar kontribusi soal milik user sendiri (lihat status PENDING/APPROVED/REJECTED) | 🟡 Sangat direkomendasikan |
-| `GET /api/user/laporan-soal` | Daftar laporan soal milik user sendiri | 🟡 Sangat direkomendasikan |
-
-### 2. 🟡 Static File Serving Belum Dikonfigurasi
-
-File `app.ts` / `index.ts` utama belum menambahkan baris:
+**Solusi:**
+```bash
+npm install express-rate-limit
+```
 ```typescript
-app.use('/static', express.static('uploads'));
-```
-Tanpa ini, gambar soal, kontribusi, dan screenshot laporan **tidak bisa diakses oleh frontend**.
-
-### 3. 🟡 Endpoint Daftar Ujian Belum Memfilter `peruntukan` (FREE/PREMIUM)
-
-Saat user FREE mengakses daftar ujian, backend harus memfilter berdasarkan `peruntukan` ujian (`FREE` atau `ALL`). User PREMIUM bisa mengakses semua.
-
-### 4. 🟢 Penambahan `jumlah_kosong` di Response `selesaiUjian`
-
-Field `jumlah_kosong` pada `HasilUjian` belum dihitung di endpoint `POST /ujian/selesai`. Ini penting untuk tampilan ringkasan pada frontend.
-
----
----
-
-# BAGIAN 2: TODOLIST IMPLEMENTASI FRONTEND
-
-## Informasi Penting Sebelum Mulai
-
-### Tech Stack yang Direkomendasikan
-
-| Platform | Framework | Bahasa | State Management |
-|----------|-----------|--------|-----------------|
-| **Web** | Next.js 14+ (App Router) atau Vite + React | TypeScript | Zustand / React Query |
-| **Mobile** | React Native + Expo | TypeScript | Zustand / React Query |
-
-### Base URL API
-```
-http://localhost:3000/api
-```
-
-### Autentikasi
-Semua endpoint (kecuali login/register) memerlukan header:
-```
-Authorization: Bearer <token>
-```
-Token didapat dari response `POST /api/auth/login`.
-
-### Gambar / Aset Statis
-```
-http://localhost:3000/static/<path>
-```
-Contoh: `http://localhost:3000/static/soal/1712905200000-123.jpg`
-
----
-
-## ARSITEKTUR HALAMAN FRONTEND
-
-```
-📱 USER APP (Mobile & Web)
-├── Auth
-│   ├── Login
-│   ├── Register
-│   └── Lupa Password (opsional)
-├── Beranda / Dashboard
-│   ├── Daftar Ujian Tersedia
-│   ├── Ringkasan Statistik (TIU/TWK/TKP)
-│   └── Ranking Singkat
-├── Simulasi Ujian
-│   ├── Detail Ujian (sebelum mulai)
-│   ├── Layar Ujian (timer, navigasi soal, pilih jawaban)
-│   ├── Konfirmasi Submit
-│   └── Hasil & Pembahasan
-├── Riwayat Ujian
-│   ├── Daftar Riwayat
-│   └── Detail Hasil + Pembahasan
-├── Profiling / Statistik
-│   ├── Grafik Kompetensi per Kategori
-│   └── Tingkat Penguasaan per Jenis Soal
-├── Leaderboard
-│   ├── Global
-│   └── Pesaing Formasi
-├── Sosial
-│   ├── Laporkan Soal
-│   ├── Kontribusikan Soal
-│   └── Status Kontribusi Saya
-└── Profil
-    ├── Edit Biodata
-    └── Pilih Instansi & Formasi
-
-🖥️ ADMIN DASHBOARD (Web Only)
-├── Auth (Login Admin)
-├── Dashboard Ringkasan
-├── Master Data (CRUD)
-│   ├── Kategori Soal
-│   ├── Jenis Soal
-│   ├── Instansi & Formasi
-│   └── Pendidikan & Jurusan
-├── Backoffice
-│   ├── Bank Soal
-│   ├── Soal (CRUD + Upload Gambar)
-│   └── Paket Ujian
-├── Review
-│   ├── Laporan Soal (list + action DITINJAU/DIPERBAIKI/DITOLAK)
-│   └── Kontribusi Soal (list + action APPROVE/REJECT)
-└── Monitoring
-    └── (opsional: statistik global)
-```
-
----
-
-## FASE F1: AUTENTIKASI USER
-
-### Halaman Login
-- [ ] Buat halaman Login dengan form Email + Password
-- [ ] Panggil `POST /api/auth/login` dengan body `{ email, password }`
-- [ ] Simpan `token` dari response ke `localStorage` (web) atau `AsyncStorage` (mobile)
-- [ ] Redirect ke Dashboard setelah login sukses
-- [ ] Tampilkan pesan error jika login gagal
-
-#### Contoh Request & Response
-```
-POST /api/auth/login
-Body: { "email": "user@test.com", "password": "123456" }
-
-Response 200:
-{
-  "success": true,
-  "data": {
-    "token": "eyJhbGciOiJIUzI1...",
-    "user": { "id": 1, "nama": "Budi", "email": "user@test.com", "kategori": "FREE" }
-  }
-}
-```
-
-### Halaman Register
-- [ ] Buat halaman Register dengan form Nama, Email, Password, Konfirmasi Password
-- [ ] Panggil `POST /api/auth/register` dengan body `{ nama, email, password }`
-- [ ] Redirect ke Login setelah registrasi sukses
-- [ ] Validasi di sisi client: Email format, Password minimal 6 karakter, Password match
-
-### Auth Guard / Protected Route
-- [ ] Buat middleware/HOC yang memeriksa token di storage
-- [ ] Jika tidak ada token atau token expired (401 dari API), redirect ke Login
-- [ ] Pasang di semua halaman kecuali Login & Register
-
----
-
-## FASE F2: DASHBOARD / BERANDA USER
-
-### Endpoint yang Dipakai
-| Endpoint | Kegunaan |
-|----------|----------|
-| `GET /api/ujian` | Daftar ujian tersedia **(PERLU DIBUAT DI BACKEND DULU)** |
-| `GET /api/user/statistik` | Statistik kompetensi user **(PERLU DIBUAT DI BACKEND DULU)** |
-
-### Tampilan Dashboard
-- [ ] **Hero Section**: Sapaan "Halo, [Nama User]!" + ringkasan statistik
-- [ ] **Kartu Statistik**: 3 kartu untuk TIU, TWK, TKP
-  - Skor rata-rata
-  - Persentase benar
-  - Total ujian yang sudah dikerjakan
-- [ ] **Daftar Ujian Tersedia**: Tampilkan daftar ujian dalam bentuk card:
-  - Nama ujian
-  - Tipe ujian (TRYOUT / LATIHAN / QUIZ)
-  - Durasi (dalam menit)
-  - Jumlah soal
-  - Badge "FREE" / "PREMIUM"
-  - Tombol "Mulai Ujian"
-
----
-
-## FASE F3: PROFIL & BIODATA USER
-
-### Endpoint yang Dipakai
-| Endpoint | Kegunaan |
-|----------|----------|
-| `GET /api/user/biodata` | Ambil data biodata user |
-| `PUT /api/user/biodata` | Simpan / update biodata |
-| `GET /api/master/instansi` | Daftar instansi (untuk dropdown) |
-| `GET /api/master/formasi?instansi_id=X` | Daftar formasi berdasarkan instansi |
-| `GET /api/master/tingkat-pendidikan` | Daftar tingkat pendidikan |
-| `GET /api/master/jurusan` | Daftar jurusan |
-
-### Halaman Edit Biodata
-- [ ] Form dengan field berikut (semua opsional kecuali nama_lengkap):
-  - `nama_lengkap` (text)
-  - `no_hp` (text)
-  - `tanggal_lahir` (date picker)
-  - `jenis_kelamin` (radio: LAKI_LAKI / PEREMPUAN)
-  - `alamat` (textarea)
-  - `provinsi`, `kota` (text)
-  - `tingkat_pendidikan_id` (dropdown dari API)
-  - `jurusan_id` (dropdown dari API)
-  - `nama_universitas` (text)
-  - `tahun_lulus` (number)
-  - `instansi_id` (dropdown dari API)
-  - `formasi_id` (dropdown, muncul setelah instansi dipilih)
-- [ ] **Cascading Dropdown**: Ketika user memilih Instansi, formasi harus di-reload
-- [ ] Kirim data ke `PUT /api/user/biodata`
-
-> **⚠️ PENTING**: Biodata instansi & formasi **WAJIB DIISI** agar fitur Leaderboard Formasi bisa digunakan.
-
----
-
-## FASE F4: SIMULASI UJIAN (KRITIS - PALING KOMPLEKS)
-
-### Endpoint yang Dipakai
-| Endpoint | Kegunaan |
-|----------|----------|
-| `GET /api/ujian/:id` | Detail ujian **(PERLU DIBUAT DI BACKEND)** |
-| `POST /api/ujian/mulai` | Mulai ujian baru |
-| `POST /api/ujian/heartbeat` | Sinkronisasi waktu setiap 30 detik |
-| `POST /api/ujian/simpan-jawaban` | Simpan jawaban user |
-| `POST /api/ujian/selesai` | Akhiri ujian dan hitung skor |
-
-### Alur Lengkap Simulasi
-
-```
-User klik "Mulai Ujian"
-    │
-    ▼
-[1] Panggil POST /ujian/mulai
-    │   Body: { ujian_id: X }
-    │   Response: { hasil_ujian_id, daftar_soal[], sisa_waktu }
-    │
-    ▼
-[2] Tampilkan Layar Ujian:
-    │   ┌──────────────────────────────────┐
-    │   │ ⏱️ Timer: 01:59:00              │
-    │   │                                  │
-    │   │ [Soal 1/100]                     │
-    │   │ Pertanyaan...                    │
-    │   │ (gambar jika ada)                │
-    │   │                                  │
-    │   │ ○ A. Opsi A                      │
-    │   │ ● B. Opsi B  ← dipilih          │
-    │   │ ○ C. Opsi C                      │
-    │   │ ○ D. Opsi D                      │
-    │   │ ○ E. Opsi E                      │
-    │   │                                  │
-    │   │ [🔖 Ragu] [◀ Prev] [Next ▶]     │
-    │   │                                  │
-    │   │ Navigasi Soal:                   │
-    │   │ [1✅][2✅][3⬜][4🔖][5⬜]...     │
-    │   │                                  │
-    │   │ [Selesai Ujian]                  │
-    │   └──────────────────────────────────┘
-    │
-    ▼
-[3] Setiap kali user memilih jawaban:
-    │   → Panggil POST /ujian/simpan-jawaban
-    │     Body: { hasil_ujian_id, ujian_soal_id, jawaban: "B", is_ragu: false }
-    │
-[4] Setiap 30 detik (setInterval):
-    │   → Panggil POST /ujian/heartbeat
-    │     Body: { hasil_ujian_id }
-    │     Response: { sisa_waktu_detik, status }
-    │     → Jika status = "TIMEOUT", otomatis tutup ujian
-    │     → Update timer dari response server (JANGAN hitung dari client!)
-    │
-[5] Tombol "Selesai Ujian" diklik:
-    │   → Tampilkan Konfirmasi: "Yakin ingin mengakhiri ujian?"
-    │   → Jika Ya:
-    │     Panggil POST /ujian/selesai
-    │     Body: { hasil_ujian_id }
-    │   → Tampilkan Halaman Hasil
-    │
-    ▼
-[6] Halaman Hasil Ujian:
-    │   ┌──────────────────────────────────┐
-    │   │ 📊 HASIL UJIAN                   │
-    │   │                                  │
-    │   │ Status: ✅ LULUS / ❌ TIDAK LULUS │
-    │   │ Skor Total: 380 / 500            │
-    │   │                                  │
-    │   │ TIU:  140 / 175  (PG: 80) ✅     │
-    │   │ TWK:  120 / 150  (PG: 65) ✅     │
-    │   │ TKP:  120 / 175  (PG: 166) ❌    │
-    │   │                                  │
-    │   │ Benar: 65  Salah: 20  Kosong: 15 │
-    │   │ Durasi: 1 jam 45 menit           │
-    │   │                                  │
-    │   │ [Lihat Pembahasan] [Kembali]     │
-    │   └──────────────────────────────────┘
-```
-
-### Komponen UI yang Dibutuhkan
-- [ ] **Timer Countdown**: Menampilkan sisa waktu (format MM:SS atau HH:MM:SS)
-  - ⚠️ Timer di-sync dari backend via heartbeat, BUKAN dihitung sendiri di client
-  - Jika sisa_waktu <= 300 detik (5 menit), warnai timer merah + animasi berkedip
-- [ ] **Kartu Soal**: Menampilkan pertanyaan + opsi A-E
-  - Jika `pertanyaan_gambar` atau `opsi_X_gambar` terisi, tampilkan gambar dari `/static/...`
-- [ ] **Navigasi Soal**: Grid tombol nomor soal
-  - Warna hijau = sudah dijawab
-  - Warna kuning = ditandai ragu (`is_ragu = true`)
-  - Warna abu-abu = belum dijawab
-- [ ] **Tombol Ragu-Ragu**: Toggle flag `is_ragu` saat menyimpan jawaban
-- [ ] **Konfirmasi Submit**: Modal dialog sebelum menyelesaikan ujian
-- [ ] **Blocking Navigation**: Cegah user keluar halaman ujian (browser back button, refresh)
-
----
-
-## FASE F5: RIWAYAT UJIAN & PEMBAHASAN
-
-### Endpoint yang Dipakai
-| Endpoint | Kegunaan |
-|----------|----------|
-| `GET /api/user/riwayat-ujian` | Daftar riwayat ujian **(PERLU DIBUAT DI BACKEND)** |
-| `GET /api/user/riwayat-ujian/:id` | Detail hasil + jawaban + pembahasan **(PERLU DIBUAT DI BACKEND)** |
-
-### Halaman Daftar Riwayat
-- [ ] Tampilkan list riwayat ujian user (paginasi):
-  - Nama ujian
-  - Tanggal mengerjakan
-  - Skor total
-  - Status: LULUS / GAGAL / TIMEOUT
-  - Tombol "Lihat Detail"
-
-### Halaman Detail & Pembahasan
-- [ ] Tampilkan ringkasan skor (TIU/TWK/TKP) + status lulus/gagal
-- [ ] Daftar soal + jawaban user vs jawaban benar:
-  - ✅ Hijau = jawaban benar
-  - ❌ Merah = jawaban salah
-  - ⬜ Abu = tidak dijawab
-- [ ] Tampilkan **pembahasan** per soal (teks + gambar jika ada)
-- [ ] Filter berdasarkan kategori: TIU / TWK / TKP
-- [ ] Filter berdasarkan status: Benar / Salah / Kosong
-
----
-
-## FASE F6: STATISTIK & PROFILING KOMPETENSI
-
-### Endpoint yang Dipakai
-| Endpoint | Kegunaan |
-|----------|----------|
-| `GET /api/user/statistik` | Data statistik kompetensi user **(PERLU DIBUAT DI BACKEND)** |
-
-### Tampilan Statistik
-- [ ] **Chart Radar/Spider**: Visualisasi kekuatan per kategori (TIU, TWK, TKP)
-- [ ] **Progress Bar per Jenis Soal**: Menampilkan tingkat penguasaan:
-  - Label: Silogisme, Analogi Verbal, Deret Angka, dll.
-  - Progress: 0-100%
-  - Badge tingkat: BELUM / RENDAH / SEDANG / TINGGI / MAHIR
-  - Warna:
-    - BELUM = Abu
-    - RENDAH = Merah
-    - SEDANG = Kuning
-    - TINGGI = Biru
-    - MAHIR = Hijau
-- [ ] **Kartu Ringkasan**:
-  - Total ujian dikerjakan
-  - Skor tertinggi & terendah per kategori
-  - Rata-rata skor
-
----
-
-## FASE F7: LEADERBOARD
-
-### Endpoint yang Dipakai
-| Endpoint | Kegunaan |
-|----------|----------|
-| `GET /api/leaderboard/global?ujian_id=X` | Ranking global |
-| `GET /api/leaderboard/formasi?ujian_id=X` | Ranking pesaing formasi |
-
-### Halaman Leaderboard
-- [ ] **Tab / Switch**: Global vs Pesaing Formasi
-- [ ] **Dropdown**: Pilih ujian (ambil dari daftar ujian)
-- [ ] **Tabel Ranking**:
-  - Nomor ranking
-  - Nama user (dari `biodata.nama_lengkap`)
-  - Skor Total
-  - Status Lulus/Gagal
-  - Durasi pengerjaan
-- [ ] **Highlight user sendiri** di dalam tabel (baris berbeda warna)
-- [ ] **Informasi Formasi** (khusus tab Formasi):
-  - Nama Instansi + Jabatan
-  - Jumlah pesaing
-
----
-
-## FASE F8: FITUR SOSIAL (LAPORAN & KONTRIBUSI)
-
-### Laporkan Soal
-- [ ] Saat user sedang melihat soal (di ujian atau pembahasan), tampilkan tombol "🚩 Laporkan"
-- [ ] Modal form laporan:
-  - `jenis_laporan` (dropdown: TYPO, JAWABAN_SALAH, dll.)
-  - `deskripsi` (textarea, min 10 karakter)
-  - `bukti_screenshot` (upload gambar, opsional)
-- [ ] Panggil `POST /api/laporan-soal` (form-data)
-- [ ] Tampilkan notifikasi sukses
-
-### Kontribusi Soal
-- [ ] Halaman form membuat soal:
-  - Pilih Kategori (TIU/TWK/TKP)
-  - Pilih Jenis Soal (dropdown, tergantung kategori)
-  - Level (MUDAH/SEDANG/SULIT)
-  - Pertanyaan (teks + upload gambar)
-  - Opsi A–E (teks + upload gambar masing-masing)
-  - Jawaban Benar (A/B/C/D/E)
-  - Pembahasan (opsional)
-- [ ] Panggil `POST /api/kontribusi-soal` (form-data, multi-file)
-- [ ] Tampilkan notifikasi sukses
-
-### Status Kontribusi Saya
-- [ ] Daftar kontribusi milik user (paginasi)
-- [ ] Status badge: PENDING (kuning), APPROVED (hijau), REJECTED (merah)
-- [ ] Jika ada `review_note`, tampilkan catatan dari admin
-
----
-
-## FASE F9: ADMIN DASHBOARD (Khusus Web)
-
-### Login Admin
-- [ ] Panggil `POST /api/admin/auth/login`
-- [ ] Simpan token admin terpisah dari token user
-
-### Dashboard Overview
-- [ ] Jumlah total soal, user, ujian, laporan pending, kontribusi pending
-
-### Master Data CRUD
-- [ ] Tabel + Form untuk: Kategori Soal, Jenis Soal, Instansi, Formasi, Pendidikan, Jurusan
-- [ ] Gunakan endpoint `GET/POST/PUT/DELETE /api/admin/master/...`
-
-### Backoffice Soal
-- [ ] CRUD Bank Soal: `GET/POST /api/admin/backoffice/bank-soal`
-- [ ] CRUD Soal: `GET/POST /api/admin/backoffice/soal` (dengan upload gambar multi-field)
-- [ ] CRUD Paket Ujian: `GET/POST /api/admin/backoffice/ujian`
-
-### Review Laporan Soal
-- [ ] Tabel daftar laporan: `GET /api/admin/backoffice/laporan-soal?status=PENDING`
-- [ ] Filter by status
-- [ ] Tombol aksi per laporan:
-  - "Tinjau" → `PATCH /api/admin/backoffice/laporan-soal/:id` `{ status: "DITINJAU" }`
-  - "Perbaiki" → `{ status: "DIPERBAIKI", review_note: "..." }`
-  - "Tolak"   → `{ status: "DITOLAK", review_note: "..." }`
-
-### Review Kontribusi Soal
-- [ ] Tabel daftar kontribusi: `GET /api/admin/backoffice/kontribusi-soal?status=PENDING`
-- [ ] Preview soal kontribusi sebelum approve
-- [ ] Tombol aksi:
-  - "Approve" → `PATCH /api/admin/backoffice/kontribusi-soal/:id` `{ status: "APPROVED", bank_soal_id: X }`
-    - Pilih Bank Soal tujuan (dropdown)
-  - "Reject"  → `{ status: "REJECTED", review_note: "..." }`
-
----
-
-## CATATAN TEKNIS UNTUK DEVELOPER FRONTEND
-
-### 1. Penanganan Error dari API
-Semua error dari API selalu memiliki format:
-```json
-{
-  "success": false,
-  "message": "Pesan error",
-  "errors": [{ "field": "email", "message": "Email wajib diisi" }]
-}
-```
-Gunakan `response.success` untuk membedakan antara sukses dan gagal.
-
-### 2. Paginasi
-Response yang memiliki banyak data selalu mengandung `meta`:
-```json
-{
-  "success": true,
-  "data": [...],
-  "meta": {
-    "page": 1,
-    "limit": 10,
-    "total": 57,
-    "totalPages": 6
-  }
-}
-```
-Gunakan query parameter `?page=X&limit=Y` untuk navigasi halaman.
-
-### 3. Upload File (Multipart)
-Untuk endpoint yang menerima file, gunakan `FormData` dan jangan set `Content-Type` header (browser akan auto-set `multipart/form-data` + boundary).
-
-```javascript
-const formData = new FormData();
-formData.append('soal_id', '42');
-formData.append('jenis_laporan', 'TYPO');
-formData.append('deskripsi', 'Ada typo di pertanyaan');
-formData.append('bukti_screenshot', fileInput.files[0]);
-
-await fetch('/api/laporan-soal', {
-  method: 'POST',
-  headers: { 'Authorization': `Bearer ${token}` },
-  // JANGAN set Content-Type!
-  body: formData,
+// backend/src/middlewares/rateLimiter.middleware.ts
+import rateLimit from 'express-rate-limit';
+
+// Rate limiter ketat untuk auth (15 request per 15 menit)
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { success: false, message: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter umum untuk semua API (100 request per menit)
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { success: false, message: 'Terlalu banyak request. Coba lagi nanti.' },
 });
 ```
+**Cara Pasang:**
+```typescript
+// app.ts
+app.use('/api', apiLimiter);
 
-### 4. Tampilkan Gambar dari Server
-```html
-<img src="http://localhost:3000/static/soal/1712905200000-123456789.jpg" />
+// auth.routes.ts
+router.post('/login', authLimiter, validate(loginUserSchema), login);
+router.post('/register', authLimiter, validate(registerUserSchema), register);
 ```
 
-### 5. Timer Ujian (KRITIS)
-```javascript
-// ❌ SALAH — mudah diretas
-let sisaWaktu = 7200;
-setInterval(() => sisaWaktu--, 1000);
-
-// ✅ BENAR — sync dari server
-setInterval(async () => {
-  const res = await fetch('/api/ujian/heartbeat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ hasil_ujian_id }),
-  });
-  const data = await res.json();
-  setSisaWaktu(data.data.sisa_waktu_detik); // Update dari server
-  if (data.data.status === 'TIMEOUT') forceFinishExam();
-}, 30000);
-```
-
-### 6. Daftar Semua API Endpoint (Quick Reference)
-
-#### Auth
-| Method | Endpoint | Role |
-|--------|----------|------|
-| POST | `/api/auth/register` | Public |
-| POST | `/api/auth/login` | Public |
-| POST | `/api/admin/auth/login` | Public |
-
-#### User
-| Method | Endpoint | Role |
-|--------|----------|------|
-| GET | `/api/user/biodata` | User |
-| PUT | `/api/user/biodata` | User |
-
-#### Master Data (Read-Only untuk User)
-| Method | Endpoint | Role |
-|--------|----------|------|
-| GET | `/api/master/kategori-soal` | User |
-| GET | `/api/master/jenis-soal` | User |
-| GET | `/api/master/tingkat-pendidikan` | User |
-| GET | `/api/master/jurusan` | User |
-| GET | `/api/master/instansi` | User |
-| GET | `/api/master/formasi?instansi_id=X` | User |
-
-#### Ujian Engine
-| Method | Endpoint | Role |
-|--------|----------|------|
-| POST | `/api/ujian/mulai` | User |
-| POST | `/api/ujian/heartbeat` | User |
-| POST | `/api/ujian/simpan-jawaban` | User |
-| POST | `/api/ujian/selesai` | User |
-
-#### Sosial
-| Method | Endpoint | Role |
-|--------|----------|------|
-| POST | `/api/laporan-soal` | User |
-| POST | `/api/kontribusi-soal` | User |
-
-#### Leaderboard
-| Method | Endpoint | Role |
-|--------|----------|------|
-| GET | `/api/leaderboard/global?ujian_id=X` | User |
-| GET | `/api/leaderboard/formasi?ujian_id=X` | User |
-
-#### Admin Master
-| Method | Endpoint | Role |
-|--------|----------|------|
-| GET/POST/PUT/DELETE | `/api/admin/master/kategori-soal` | Admin |
-| GET/POST/PUT/DELETE | `/api/admin/master/jenis-soal` | Admin |
-| GET/POST/PUT/DELETE | `/api/admin/master/tingkat-pendidikan` | Admin |
-| GET/POST/PUT/DELETE | `/api/admin/master/jurusan` | Admin |
-| GET/POST/PUT/DELETE | `/api/admin/master/instansi` | Admin |
-| GET/POST/PUT/DELETE | `/api/admin/master/formasi` | Admin |
-
-#### Admin Backoffice
-| Method | Endpoint | Role |
-|--------|----------|------|
-| GET/POST | `/api/admin/backoffice/bank-soal` | Admin |
-| GET/POST | `/api/admin/backoffice/soal` | Admin |
-| GET/POST | `/api/admin/backoffice/ujian` | Admin |
-| GET/PATCH | `/api/admin/backoffice/laporan-soal` | Admin |
-| GET/PATCH | `/api/admin/backoffice/kontribusi-soal` | Admin |
+- [ ] Install `express-rate-limit`
+- [ ] Buat file `rateLimiter.middleware.ts`
+- [ ] Pasang `authLimiter` di route login & register (user DAN admin)
+- [ ] Pasang `apiLimiter` di `app.ts` secara global
+- [ ] Buat unit test untuk memastikan rate limiter aktif
 
 ---
 
-# Definisi "Selesai" untuk Frontend
+### SEC-02: JWT Secret Terlalu Lemah ← KRITIS
+**File:** `backend/.env`
+**Masalah:** `JWT_SECRET=cpns-training-secret-key-2026` — ini terlalu mudah ditebak. Siapapun yang membaca kode sumber bisa membuat token palsu.
+**Dampak:** Pencurian identitas, akses tidak sah ke semua akun.
 
-## MVP (Minimum Viable Product)
-1. ✅ User bisa Register & Login
-2. ✅ User melihat daftar ujian dan memulai simulasi
-3. ✅ Timer berjalan & sync dari server
-4. ✅ User menjawab soal dan submit ujian
-5. ✅ Melihat hasil ujian (skor, lulus/gagal, pembahasan)
-6. ✅ Melihat riwayat ujian
-7. ✅ Edit biodata (pilih instansi & formasi)
-8. ✅ Melihat leaderboard
+**Solusi:**
+```bash
+# Generate secret acak yang kuat (jalankan di terminal):
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+Kemudian ganti di `.env`:
+```
+JWT_SECRET=<hasil_dari_command_di_atas>
+```
 
-## Full Version (Setelah MVP)
-1. ✅ Statistik & grafik kompetensi
-2. ✅ Laporan soal dengan upload bukti
-3. ✅ Kontribusikan soal baru
-4. ✅ Admin dashboard lengkap
-5. ✅ Responsive design (mobile-first)
+- [ ] Generate JWT_SECRET baru minimal 64 karakter random
+- [ ] Pastikan `.env` sudah ada di `.gitignore` (✅ sudah di-gitignore)
+- [ ] Buat file `.env.example` sebagai template tanpa value sensitif
+
+---
+
+### SEC-03: Refresh Token Menggunakan Secret yang Sama ← SEDANG
+**File:** `backend/src/services/auth.service.ts` (baris 47-51)
+**Masalah:** `generateRefreshToken` menggunakan `JWT_SECRET` yang sama dengan `generateAccessToken`. Jika access token dicuri, penyerang bisa menukarnya sebagai refresh token.
+
+**Solusi:**
+Tambahkan environment variable baru:
+```
+JWT_REFRESH_SECRET=<secret_berbeda>
+```
+```typescript
+// auth.service.ts
+export function generateRefreshToken(payload: JwtPayload): string {
+  return jwt.sign(payload as any, env.JWT_REFRESH_SECRET as string, {
+    expiresIn: env.JWT_REFRESH_EXPIRY as any,
+  });
+}
+```
+
+- [ ] Tambahkan `JWT_REFRESH_SECRET` di `env.ts` schema dan `.env`
+- [ ] Update `generateRefreshToken` agar menggunakan secret terpisah
+- [ ] Update `refreshToken` dan `refreshAdminToken` controller untuk menggunakan secret terpisah saat verifikasi
+
+---
+
+### SEC-04: Tidak Ada Sanitasi Input HTML/XSS ← SEDANG
+**File:** Semua controller yang menerima input teks (pertanyaan soal, deskripsi, pembahasan, review_note).
+**Masalah:** Teks dari user langsung disimpan ke database tanpa sanitasi. Jika ditampilkan di frontend tanpa escape, bisa terjadi Stored XSS.
+**Dampak:** Serangan Cross-Site Scripting (XSS).
+
+**Solusi:**
+```bash
+npm install xss
+```
+```typescript
+// backend/src/utils/sanitize.ts
+import xss from 'xss';
+
+export function sanitizeHtml(input: string): string {
+  return xss(input);
+}
+
+export function sanitizeObject<T extends Record<string, any>>(obj: T, fields: string[]): T {
+  const result = { ...obj };
+  for (const field of fields) {
+    if (typeof result[field] === 'string') {
+      (result as any)[field] = sanitizeHtml(result[field]);
+    }
+  }
+  return result;
+}
+```
+**Cara Pakai:**
+```typescript
+// Di controller sebelum simpan ke DB:
+const cleanBody = sanitizeObject(req.body, ['pertanyaan', 'opsi_a', 'opsi_b', ...]);
+```
+
+- [ ] Install `xss`
+- [ ] Buat utility `sanitize.ts`
+- [ ] Terapkan di `createSoal`, `kirimKontribusi`, `kirimLaporan`, dan `upsertBiodata`
+- [ ] Buat unit test sanitasi
+
+---
+
+### SEC-05: Upload File Hanya Memeriksa Ekstensi, Tidak MIME Type ← SEDANG
+**File:** `backend/src/utils/upload.ts` (baris 34-41)
+**Masalah:** Filter hanya berdasarkan ekstensi `.jpg/.jpeg`. File berbahaya bisa diupload dengan mengganti ekstensi.
+
+**Solusi:**
+```typescript
+const fileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+  if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Hanya file gambar (jpg, png, webp) yang diizinkan'));
+  }
+};
+```
+
+- [ ] Tambahkan validasi `file.mimetype` di samping ekstensi
+- [ ] Perluas format gambar yang diizinkan (tambahkan `.png` dan `.webp`)
+- [ ] Update `ALLOWED_EXTENSIONS` di `constants.ts`
+
+---
+
+### SEC-06: Parameter `id` di Admin Delete Tidak Divalidasi ← RENDAH
+**File:** `admin-master.controller.ts`, `admin-soal.controller.ts`
+**Masalah:** `Number(id)` bisa menghasilkan `NaN` jika input bukan angka, yang menyebabkan error Prisma yang tidak terkontrol.
+
+**Solusi:**
+Gunakan `validateParams` middleware dengan Zod schema:
+```typescript
+// validators/common.validator.ts
+export const idParamSchema = z.object({
+  id: z.coerce.number().int().positive('ID harus angka positif'),
+});
+```
+```typescript
+// Di route:
+router.delete('/:id', authenticateAdmin, validateParams(idParamSchema), deleteKategori);
+```
+
+- [ ] Buat `common.validator.ts` dengan `idParamSchema`
+- [ ] Terapkan `validateParams` pada semua route yang menggunakan `:id`
+
+---
+
+## 🟡 KUALITAS KODE (CODE QUALITY)
+
+### QC-01: Prisma Client Tidak Menangani Koneksi Graceful Shutdown
+**File:** `backend/src/lib/prisma.ts`
+**Masalah:** Saat server mati, koneksi database tidak ditutup dengan benar. Ini bisa menyebabkan connection leak.
+
+**Solusi:**
+```typescript
+// backend/src/lib/prisma.ts
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
+
+// Graceful shutdown
+process.on('beforeExit', async () => {
+  await prisma.$disconnect();
+});
+
+export default prisma;
+```
+
+- [ ] Update `prisma.ts` dengan logging kondisional dan graceful shutdown
+- [ ] Tambahkan handler `SIGINT` dan `SIGTERM` di `server.ts`
+
+---
+
+### QC-02: Tidak Ada Request Logger ← PENTING
+**File:** `backend/src/app.ts`
+**Masalah:** Tidak ada logging request HTTP. Sulit untuk debugging dan monitoring di production.
+
+**Solusi:**
+```bash
+npm install morgan
+npm install -D @types/morgan
+```
+```typescript
+// app.ts
+import morgan from 'morgan';
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+```
+
+- [ ] Install `morgan` dan `@types/morgan`
+- [ ] Pasang di `app.ts` sebelum routes
+- [ ] Gunakan format `combined` untuk production, `dev` untuk development
+
+---
+
+### QC-03: Fungsi `serializeFormasi` Diduplikasi ← RENDAH
+**File:** `backend/src/controllers/master.controller.ts` DAN `admin-master.controller.ts`
+**Masalah:** Fungsi helper `serializeFormasi` yang identik ada di 2 file.
+
+**Solusi:**
+Pindahkan ke `utils/serializer.ts`:
+```typescript
+// backend/src/utils/serializer.ts
+export function serializeFormasi(data: any) { ... }
+```
+
+- [ ] Buat file `utils/serializer.ts`
+- [ ] Pindahkan fungsi `serializeFormasi` ke sana
+- [ ] Import dari kedua controller
+
+---
+
+### QC-04: Terlalu Banyak Penggunaan `any` ← SEDANG
+**File:** Beberapa controller, terutama `admin-master.controller.ts`, `leaderboard.controller.ts`
+**Masalah:** Type `any` mengurangi keamanan tipe TypeScript.
+
+**Daftar lokasi perbaikan:**
+| File | Baris | Konteks |
+|------|-------|---------|
+| `admin-master.controller.ts` | 7, 165 | `serializeFormasi`, `updateData` |
+| `admin-soal.controller.ts` | 19 | `getFilePath(files: any, ...)` |
+| `leaderboard.controller.ts` | 16, 50, 93, 126 | `status`, `rankings`, `where` |
+| `kontribusi-soal.controller.ts` | 60 | `where: any` |
+| `laporan-soal.controller.ts` | 58 | `where: any` |
+
+**Solusi per kasus:**
+```typescript
+// Contoh: Ganti `const where: any = {}` menjadi:
+import type { Prisma } from '@prisma/client';
+const where: Prisma.KontribusiSoalWhereInput = {};
+```
+
+- [ ] Ganti `any` pada `where` clause menjadi `Prisma.XxxWhereInput`
+- [ ] Ganti `any` pada `updateData` menjadi typed objects
+- [ ] Buat interface untuk file upload helpers
+
+---
+
+### QC-05: Enum Mismatch Antara Validator dan Prisma Schema ← BUG
+**File:** `backend/src/validators/backoffice.validator.ts` (baris 36)
+**Masalah:** Validator `createPaketUjianSchema` menggunakan enum `['SIMULASI', 'LATIHAN', 'MATERI']`, tetapi Prisma schema mendefinisikan `TipeUjian` sebagai `['TRYOUT', 'LATIHAN', 'QUIZ']`. Ini akan menyebabkan error saat membuat paket ujian.
+
+**Juga:** Di `createSoalSchema` baris 17, enum level menggunakan `'HOTS'`, tapi Prisma schema mendefinisikan `'HOST'`.
+
+**Solusi:**
+```typescript
+// backoffice.validator.ts
+tipe: z.enum(['TRYOUT', 'LATIHAN', 'QUIZ']),  // ← sesuai enum TipeUjian
+level: z.enum(['MUDAH', 'SEDANG', 'SULIT', 'HOST']),  // ← sesuai enum LevelSoal
+```
+
+- [ ] Fix enum `tipe` di `createPaketUjianSchema` → `['TRYOUT', 'LATIHAN', 'QUIZ']`
+- [ ] Fix enum `level` di `createSoalSchema` → `['MUDAH', 'SEDANG', 'SULIT', 'HOST']`
+- [ ] Buat test untuk memastikan validasi sesuai enum Prisma
+
+---
+
+### QC-06: Controller `ujian-engine.controller.ts` Terlalu Besar (607 Baris) ← SEDANG
+**File:** `backend/src/controllers/ujian-engine.controller.ts`
+**Masalah:** File ini menangani mulai ujian, heartbeat, simpan jawaban, DAN kalkulasi skor. Terlalu banyak tanggung jawab.
+
+**Solusi:** Refactor kalkulasi skor ke service terpisah:
+```
+controllers/ujian-engine.controller.ts  → Hanya handle request/response
+services/ujian-engine.service.ts        → Logika bisnis kalkulasi skor & statistik
+```
+
+- [ ] Buat `services/ujian-engine.service.ts`
+- [ ] Pindahkan fungsi `checkAndHandleTimeout` ke service
+- [ ] Pindahkan logika kalkulasi skor (statsKategori, statsJenis, detailLulus) ke service
+- [ ] Controller hanya memanggil service dan mengembalikan response
+
+---
+
+### QC-07: Hard Delete pada Master Data Berbahaya
+**File:** `admin-master.controller.ts` — `deleteKategori`, `deleteJenis`, `deleteInstansi`, `deleteFormasi`
+**Masalah:** Menggunakan `prisma.xxx.delete()` yang akan menyebabkan `Foreign Key Constraint Error` jika sudah ada data terkait (soal, hasil ujian, dll).
+
+**Solusi:** Gunakan soft delete (sudah ada kolom `is_active` di beberapa tabel):
+```typescript
+// Ganti delete menjadi soft delete:
+export async function deleteKategori(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    // Cek apakah masih digunakan
+    const soalCount = await prisma.soal.count({ where: { kategori_soal_id: Number(id) } });
+    if (soalCount > 0) {
+      throw new AppError('Kategori masih digunakan oleh soal dan tidak bisa dihapus', 409);
+    }
+    await prisma.kategoriSoal.delete({ where: { id: Number(id) } });
+    res.json(successResponse(null, 'Kategori berhasil dihapus'));
+  } catch (error) {
+    next(error);
+  }
+}
+```
+
+- [ ] Tambahkan pengecekan "masih digunakan" sebelum delete pada semua master data
+- [ ] Untuk data yang sudah ada relasi (instansi, formasi), gunakan soft delete (`is_active = false`)
+
+---
+
+## 🟢 PENAMBAHAN FITUR (FEATURE ENHANCEMENTS)
+
+### FE-01: Endpoint Ganti Password User ← PRIORITAS TINGGI
+**Saat ini belum tersedia.**
+
+```typescript
+// validators/auth.validator.ts
+export const changePasswordSchema = z.object({
+  old_password: z.string().min(1, 'Password lama wajib diisi'),
+  new_password: z.string().min(6, 'Password baru minimal 6 karakter').max(100),
+});
+```
+```typescript
+// controllers/auth.controller.ts
+export async function changePassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { old_password, new_password } = req.body;
+    const userId = req.user!.id;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User tidak ditemukan', 404);
+
+    const isMatch = await comparePassword(old_password, user.password);
+    if (!isMatch) throw new AppError('Password lama tidak cocok', 401);
+
+    const hashed = await hashPassword(new_password);
+    await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+
+    res.json(successResponse(null, 'Password berhasil diubah'));
+  } catch (error) {
+    next(error);
+  }
+}
+```
+
+- [ ] Tambahkan `changePasswordSchema` di validator
+- [ ] Tambahkan `changePassword` di controller
+- [ ] Daftarkan route `PUT /api/auth/change-password`
+- [ ] Buat unit test
+
+---
+
+### FE-02: Endpoint Admin Dashboard Summary ← PRIORITAS SEDANG
+**Saat ini frontend admin tidak punya data untuk halaman dashboard.**
+
+```typescript
+// controllers/admin-dashboard.controller.ts
+export async function getDashboardSummary(req: Request, res: Response, next: NextFunction) {
+  try {
+    const [totalUser, totalSoal, totalUjian, totalLaporan, totalKontribusi] = await Promise.all([
+      prisma.user.count({ where: { is_active: true } }),
+      prisma.soal.count({ where: { is_active: true } }),
+      prisma.ujian.count({ where: { is_active: true } }),
+      prisma.laporanSoal.count({ where: { status: 'PENDING' } }),
+      prisma.kontribusiSoal.count({ where: { status: 'PENDING' } }),
+    ]);
+
+    res.json(successResponse({
+      totalUser, totalSoal, totalUjian,
+      laporanPending: totalLaporan,
+      kontribusiPending: totalKontribusi,
+    }));
+  } catch (error) {
+    next(error);
+  }
+}
+```
+
+- [ ] Buat file `admin-dashboard.controller.ts`
+- [ ] Buat route `GET /api/admin/dashboard`
+- [ ] Buat unit test
+
+---
+
+### FE-03: Endpoint Upload/Ganti Avatar User ← PRIORITAS RENDAH
+**Kolom `avatar` sudah ada di tabel `users`, tapi belum ada endpoint untuk upload.**
+
+- [ ] Buat multer instance untuk upload avatar: `uploads/avatar/`
+- [ ] Buat endpoint `PUT /api/user/avatar` (form-data, field `avatar`)
+- [ ] Hapus file lama saat ganti avatar
+- [ ] Buat unit test
+
+---
+
+### FE-04: Soft Delete untuk Soal (Toggle `is_active`) ← PRIORITAS SEDANG
+**File:** `admin-soal.controller.ts`
+**Saat ini `deleteSoal` menghapus permanen. Ini berbahaya karena soal mungkin sudah terlanjur dipakai dalam ujian.**
+
+- [ ] Tambahkan endpoint `PATCH /api/admin/backoffice/soal/:id/toggle-active`
+- [ ] Logika: flip `is_active` dari true ke false atau sebaliknya
+- [ ] Hapus atau nonaktifkan tombol "Hard Delete" di frontend admin
+
+---
+
+### FE-05: Endpoint Search/Filter Soal di Admin
+**Saat ini `getSoalByBank` hanya filter berdasarkan `bank_soal_id`. Admin perlu search dan filter lebih lengkap.**
+
+- [ ] Tambahkan query params: `?search=`, `?kategori_id=`, `?jenis_id=`, `?level=`
+- [ ] Implementasi `contains` search pada field `pertanyaan`
+- [ ] Tambahkan paginasi
+
+---
+
+### FE-06: Endpoint Hapus File yang Tidak Terpakai (Orphan Files) ← PRIORITAS RENDAH
+**Saat kontribusi di-reject, file gambar yang diupload tetap tersimpan di server.**
+
+- [ ] Buat utility/scheduler untuk membersihkan file orphan
+- [ ] Atau, hapus file saat kontribusi di-reject di `reviewKontribusi`
+
+---
+
+## 🔵 INFRASTRUKTUR & DEVOPS
+
+### INF-01: Buat File `.env.example`
+**Masalah:** Developer baru tidak tahu variable environment apa saja yang diperlukan.
+
+```env
+# .env.example
+DATABASE_URL=mysql://root:password@localhost:3306/cpns_training
+PORT=3000
+JWT_SECRET=ganti_dengan_random_string_64_karakter
+JWT_REFRESH_SECRET=ganti_dengan_random_string_64_karakter_berbeda
+JWT_EXPIRY=1d
+JWT_REFRESH_EXPIRY=7d
+NODE_ENV=development
+```
+
+- [ ] Buat file `.env.example`
+- [ ] Pastikan `.env.example` TIDAK ada di `.gitignore`
+- [ ] Tambahkan instruksi di `README.md`
+
+---
+
+### INF-02: Tambahkan CORS Whitelist ← SEDANG
+**File:** `backend/src/app.ts` (baris 12)
+**Masalah:** `app.use(cors())` mengizinkan request dari domain manapun. Ini tidak aman di production.
+
+**Solusi:**
+```typescript
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://cpns-training.com', 'https://admin.cpns-training.com']
+    : true, // Izinkan semua di development
+  credentials: true,
+};
+app.use(cors(corsOptions));
+```
+
+- [ ] Tambahkan `CORS_ORIGIN` di env schema
+- [ ] Konfigurasi whitelist di `app.ts`
+
+---
+
+### INF-03: Tambahkan Compression Middleware ← RENDAH
+```bash
+npm install compression
+npm install -D @types/compression
+```
+```typescript
+import compression from 'compression';
+app.use(compression());
+```
+
+- [ ] Install dan pasang `compression` di `app.ts`
+
+---
+
+### INF-04: Documentasi API dengan Swagger/OpenAPI ← PRIORITAS RENDAH
+**Saat ini tidak ada dokumentasi API resmi yang bisa diakses oleh frontend developer.**
+
+- [ ] Install `swagger-jsdoc` dan `swagger-ui-express`
+- [ ] Buat JSDoc annotation pada setiap route
+- [ ] Serve di `/api/docs`
+
+---
+
+## RINGKASAN PRIORITAS
+
+| Prioritas | Kode | Judul | Perkiraan Waktu |
+|-----------|------|-------|-----------------|
+| 🔴 Kritis | SEC-01 | Rate Limiting | 1-2 jam |
+| 🔴 Kritis | SEC-02 | JWT Secret Lemah | 15 menit |
+| 🔴 Kritis | QC-05 | Enum Mismatch (BUG) | 30 menit |
+| 🟠 Tinggi | SEC-03 | Refresh Token Secret Terpisah | 1 jam |
+| 🟠 Tinggi | SEC-04 | Sanitasi Input XSS | 2 jam |
+| 🟠 Tinggi | FE-01 | Ganti Password | 1 jam |
+| 🟠 Tinggi | QC-02 | Request Logger | 30 menit |
+| 🟡 Sedang | SEC-05 | Validasi MIME Type Upload | 30 menit |
+| 🟡 Sedang | SEC-06 | Validasi Param ID | 1 jam |
+| 🟡 Sedang | QC-01 | Prisma Graceful Shutdown | 30 menit |
+| 🟡 Sedang | QC-04 | Kurangi `any` | 2 jam |
+| 🟡 Sedang | QC-06 | Refactor Engine ke Service | 3 jam |
+| 🟡 Sedang | QC-07 | Soft Delete Master Data | 1 jam |
+| 🟡 Sedang | FE-02 | Admin Dashboard Summary | 1 jam |
+| 🟡 Sedang | FE-04 | Soft Delete Soal | 30 menit |
+| 🟡 Sedang | FE-05 | Search/Filter Soal Admin | 1 jam |
+| 🟡 Sedang | INF-02 | CORS Whitelist | 30 menit |
+| 🟢 Rendah | QC-03 | Hapus Duplikasi `serializeFormasi` | 15 menit |
+| 🟢 Rendah | FE-03 | Upload Avatar | 1 jam |
+| 🟢 Rendah | FE-06 | Bersihkan Orphan Files | 1 jam |
+| 🟢 Rendah | INF-01 | `.env.example` | 15 menit |
+| 🟢 Rendah | INF-03 | Compression Middleware | 15 menit |
+| 🟢 Rendah | INF-04 | Swagger API Docs | 3 jam |
+
+**Estimasi Total:** ~22 jam kerja
+
+---
+
+## URUTAN PENGERJAAN YANG DIREKOMENDASIKAN
+
+1. **Sprint 1 (Hari 1):** SEC-02, QC-05, INF-01, QC-03 — Quick wins dan bug fix
+2. **Sprint 2 (Hari 2):** SEC-01, QC-02, QC-01 — Keamanan dasar dan monitoring
+3. **Sprint 3 (Hari 3):** SEC-03, SEC-04, SEC-05, SEC-06 — Hardening keamanan
+4. **Sprint 4 (Hari 4):** FE-01, FE-02, FE-04, FE-05 — Fitur baru
+5. **Sprint 5 (Hari 5):** QC-04, QC-06, QC-07 — Refaktoring kode
+6. **Sprint 6 (Opsional):** INF-02, INF-03, INF-04, FE-03, FE-06 — Polish

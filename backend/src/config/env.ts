@@ -6,6 +6,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
   JWT_EXPIRY: z.string().default('1d'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
+  JWT_REFRESH_SECRET: z.string().min(1, 'JWT_REFRESH_SECRET is required'),
+  CORS_ORIGIN: z.string().default('*'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });
 

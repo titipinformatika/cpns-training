@@ -14,7 +14,7 @@ export const createSoalSchema = z.object({
   bank_soal_id: z.coerce.number().int().positive(),
   kategori_soal_id: z.coerce.number().int().positive(),
   jenis_soal_id: z.coerce.number().int().positive(),
-  level: z.enum(['MUDAH', 'SEDANG', 'SULIT', 'HOTS']),
+  level: z.enum(['MUDAH', 'SEDANG', 'SULIT', 'HOST']),
   pertanyaan: z.string().optional().nullable(),
   opsi_a: z.string().optional().nullable(),
   opsi_b: z.string().optional().nullable(),
@@ -33,7 +33,7 @@ export const createPaketUjianSchema = z.object({
   deskripsi: z.string().optional().nullable(),
   durasi_menit: z.coerce.number().int().positive(),
   bank_soal_id: z.coerce.number().int().positive(),
-  tipe: z.enum(['SIMULASI', 'LATIHAN', 'MATERI']),
+  tipe: z.enum(['TRYOUT', 'LATIHAN', 'QUIZ']),
   peruntukan: z.enum(['FREE', 'PREMIUM', 'ALL']),
   is_active: z.boolean().default(true),
 });

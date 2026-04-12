@@ -1,23 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import { successResponse } from '../utils/response.js';
+import { serializeFormasi } from '../utils/serializer.js';
 import { AppError } from '../middlewares/error.middleware.js';
-
-// === Helper: Serialize BigInt for JSON ===
-const serializeFormasi = (data: any) => {
-  if (Array.isArray(data)) {
-    return data.map((item) => ({
-      ...item,
-      gaji_min: item.gaji_min ? Number(item.gaji_min) : null,
-      gaji_max: item.gaji_max ? Number(item.gaji_max) : null,
-    }));
-  }
-  return {
-    ...data,
-    gaji_min: data.gaji_min ? Number(data.gaji_min) : null,
-    gaji_max: data.gaji_max ? Number(data.gaji_max) : null,
-  };
-};
 
 // --- Kategori Soal ---
 export async function createKategori(req: Request, res: Response, next: NextFunction) {
@@ -45,6 +30,13 @@ export async function updateKategori(req: Request, res: Response, next: NextFunc
 export async function deleteKategori(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
+    
+    // Safety check: is it being used?
+    const count = await prisma.soal.count({ where: { kategori_soal_id: Number(id) } });
+    if (count > 0) {
+      throw new AppError('Kategori tidak bisa dihapus karena masih digunakan oleh soal', 409);
+    }
+    
     await prisma.kategoriSoal.delete({ where: { id: Number(id) } });
     res.json(successResponse(null, 'Kategori berhasil dihapus'));
   } catch (error) {
@@ -78,6 +70,13 @@ export async function updateJenis(req: Request, res: Response, next: NextFunctio
 export async function deleteJenis(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
+    
+    // Safety check: is it being used?
+    const count = await prisma.soal.count({ where: { jenis_soal_id: Number(id) } });
+    if (count > 0) {
+      throw new AppError('Jenis soal tidak bisa dihapus karena masih digunakan oleh soal', 409);
+    }
+
     await prisma.jenisSoal.delete({ where: { id: Number(id) } });
     res.json(successResponse(null, 'Jenis soal berhasil dihapus'));
   } catch (error) {
@@ -132,8 +131,12 @@ export async function updateInstansi(req: Request, res: Response, next: NextFunc
 export async function deleteInstansi(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
-    await prisma.instansi.delete({ where: { id: Number(id) } });
-    res.json(successResponse(null, 'Instansi berhasil dihapus'));
+    // Gunakan Soft Delete untuk data yang berpotensi memiliki banyak relasi
+    await prisma.instansi.update({ 
+      where: { id: Number(id) },
+      data: { is_active: false }
+    });
+    res.json(successResponse(null, 'Instansi berhasil dinonaktifkan'));
   } catch (error) {
     next(error);
   }
@@ -179,8 +182,12 @@ export async function updateFormasi(req: Request, res: Response, next: NextFunct
 export async function deleteFormasi(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
-    await prisma.formasi.delete({ where: { id: Number(id) } });
-    res.json(successResponse(null, 'Formasi berhasil dihapus'));
+    // Gunakan Soft Delete
+    await prisma.formasi.update({ 
+      where: { id: Number(id) },
+      data: { is_active: false }
+    });
+    res.json(successResponse(null, 'Formasi berhasil dinonaktifkan'));
   } catch (error) {
     next(error);
   }

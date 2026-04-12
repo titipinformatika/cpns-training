@@ -30,13 +30,16 @@ function createStorage(destination: string) {
   });
 }
 
-// Filter: hanya .jpg dan .jpeg
+// Filter: hanya gambar (jpg, png, webp)
 const fileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  if (ext === '.jpg' || ext === '.jpeg') {
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+  if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Hanya file .jpg/.jpeg yang diizinkan'));
+    cb(new Error('Hanya file gambar (.jpg, .png, .webp) yang diizinkan'));
   }
 };
 

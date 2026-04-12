@@ -169,3 +169,28 @@ export async function getMe(req: Request, res: Response, next: NextFunction) {
     next(error);
   }
 }
+/**
+ * PUT /api/auth/change-password
+ */
+export async function changePassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { old_password, new_password } = req.body;
+    const userId = req.user!.id;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User tidak ditemukan', 404);
+
+    const isMatch = await comparePassword(old_password, user.password);
+    if (!isMatch) throw new AppError('Password lama tidak cocok', 401);
+
+    const hashed = await hashPassword(new_password);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    res.json(successResponse(null, 'Password berhasil diubah'));
+  } catch (error) {
+    next(error);
+  }
+}

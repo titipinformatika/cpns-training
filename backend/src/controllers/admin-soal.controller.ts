@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../middlewares/error.middleware.js';
+import { sanitizeObject } from '../utils/sanitize.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -27,9 +28,12 @@ const getFilePath = (files: any, fieldName: string): string | null => {
 export async function createSoal(req: Request, res: Response, next: NextFunction) {
   try {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const body = sanitizeObject(req.body, [
+      'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'pembahasan'
+    ]);
     
     const dataSoal = {
-      ...req.body,
+      ...body,
       pertanyaan_gambar: getFilePath(files, 'pertanyaan_gambar'),
       opsi_a_gambar: getFilePath(files, 'opsi_a_gambar'),
       opsi_b_gambar: getFilePath(files, 'opsi_b_gambar'),
@@ -50,8 +54,25 @@ export async function createSoal(req: Request, res: Response, next: NextFunction
 export async function getSoalByBank(req: Request, res: Response, next: NextFunction) {
   try {
     const { bank_soal_id } = req.params;
+    const { search, kategori_id, jenis_id, level } = req.query;
+    
+    const where: any = { bank_soal_id: Number(bank_soal_id) };
+
+    if (search) {
+      where.pertanyaan = { contains: String(search) };
+    }
+    if (kategori_id) {
+      where.kategori_soal_id = Number(kategori_id);
+    }
+    if (jenis_id) {
+      where.jenis_soal_id = Number(jenis_id);
+    }
+    if (level) {
+      where.level = level;
+    }
+
     const data = await prisma.soal.findMany({
-      where: { bank_soal_id: Number(bank_soal_id) },
+      where,
       include: {
         kategori_soal: { select: { nama: true, kode: true } },
         jenis_soal: { select: { nama: true } },
@@ -59,6 +80,26 @@ export async function getSoalByBank(req: Request, res: Response, next: NextFunct
       orderBy: { created_at: 'desc' }
     });
     res.json(successResponse(data));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/admin/backoffice/soal/:id/toggle-active
+ */
+export async function toggleActiveSoal(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.soal.findUnique({ where: { id: Number(id) } });
+    if (!existing) throw new AppError('Soal tidak ditemukan', 404);
+
+    const updated = await prisma.soal.update({
+      where: { id: Number(id) },
+      data: { is_active: !existing.is_active }
+    });
+
+    res.json(successResponse(updated, `Soal berhasil ${updated.is_active ? 'diaktifkan' : 'dinonaktifkan'}`));
   } catch (error) {
     next(error);
   }
@@ -73,7 +114,10 @@ export async function updateSoal(req: Request, res: Response, next: NextFunction
     const existing = await prisma.soal.findUnique({ where: { id: Number(id) } });
     if (!existing) throw new AppError('Soal tidak ditemukan', 404);
 
-    const updateData: any = { ...req.body };
+    const body = sanitizeObject(req.body, [
+      'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'pembahasan'
+    ]);
+    const updateData: any = { ...body };
 
     const imageFields = [
       'pertanyaan_gambar', 'opsi_a_gambar', 'opsi_b_gambar', 
