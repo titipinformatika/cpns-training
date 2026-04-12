@@ -15,37 +15,49 @@ import {
   Briefcase, 
   Edit3, 
   Key,
-  AlertCircle,
-  Loader2
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function ProfilPage() {
   const { user } = useAuth();
   const [biodata, setBiodata] = useState<BiodataUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchBiodata() {
-      try {
-        const res = await userApi.getBiodata();
-        setBiodata(res.data.data);
-      } catch (err: any) {
-        toast.error('Gagal mengambil data biodata');
-      } finally {
-        setIsLoading(false);
-      }
-    }
     fetchBiodata();
   }, []);
 
+  const fetchBiodata = async () => {
+    setError(null);
+    try {
+      const res = await userApi.getBiodata();
+      setBiodata(res.data.data);
+    } catch (err: any) {
+      setError('Gagal mengambil data biodata. Silakan coba lagi.');
+      toast.error('Gagal mengambil data biodata');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (isLoading) {
+    return <LoadingSpinner fullScreen text="Memuat profil Anda..." />;
+  }
+
+  if (error) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-500 font-medium">Memuat profil Anda...</p>
-        </div>
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Gagal Memuat Profil"
+          description={error}
+          icon={AlertCircle}
+          actionLabel="Coba Lagi"
+          onClickAction={fetchBiodata}
+        />
       </div>
     );
   }

@@ -11,7 +11,6 @@ import {
   AlertTriangle, 
   ChevronLeft, 
   ChevronRight,
-  Loader2,
   Search,
   School,
   Briefcase,
@@ -19,6 +18,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 type TabType = 'global' | 'formasi';
 
@@ -38,6 +39,7 @@ export default function LeaderboardPage() {
   
   // Status State
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formasiError, setFormasiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,11 +67,13 @@ export default function LeaderboardPage() {
 
   const fetchGlobal = async (ujianId: number, page: number) => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await leaderboardApi.getGlobal({ ujian_id: ujianId, page, limit: 10 });
       setGlobalData(res.data.data);
       setTotalPages(res.data.meta.totalPages);
     } catch (err) {
+      setError('Gagal mengambil data peringkat. Silakan coba lagi.');
       toast.error('Gagal mengambil data peringkat global');
     } finally {
       setIsLoading(false);
@@ -79,6 +83,7 @@ export default function LeaderboardPage() {
   const fetchFormasi = async (ujianId: number) => {
     setIsLoading(true);
     setFormasiError(null);
+    setError(null);
     try {
       const res = await leaderboardApi.getFormasi(ujianId);
       setFormasiInfo(res.data.data);
@@ -86,6 +91,7 @@ export default function LeaderboardPage() {
       if (err.response?.status === 400) {
         setFormasiError('Lengkapi profil (instansi & formasi) untuk melihat peringkat pesaing Anda.');
       } else {
+        setError('Gagal mengambil data peringkat formasi. Silakan coba lagi.');
         toast.error('Gagal mengambil data peringkat formasi');
       }
     } finally {
@@ -236,22 +242,22 @@ export default function LeaderboardPage() {
         {/* Content Card */}
         <div className="bg-white rounded-[3rem] shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden min-h-[400px]">
           {!selectedUjianId ? (
-            <div className="flex flex-col items-center justify-center py-40 text-center px-10">
-               <div className="w-24 h-24 bg-gray-50 text-gray-200 rounded-[2rem] flex items-center justify-center mb-8 rotate-12 group hover:rotate-0 transition-transform duration-500">
-                  <Trophy className="w-12 h-12" />
-               </div>
-               <h3 className="text-2xl font-black text-gray-900 mb-3 tracking-tight">Siap Untuk Bersaing?</h3>
-               <p className="text-gray-500 max-w-sm font-medium leading-relaxed">
-                 Pilih salah satu paket ujian di atas untuk melihat bagan peringkat terbaru.
-               </p>
-            </div>
+            <EmptyState
+              title="Siap Untuk Bersaing?"
+              description="Pilih salah satu paket ujian di atas untuk melihat bagan peringkat terbaru."
+              icon={Trophy}
+            />
           ) : isLoading ? (
-            <div className="flex flex-col items-center justify-center py-40 gap-6">
-               <div className="relative">
-                  <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                  <div className="absolute inset-0 bg-indigo-600/10 blur-xl rounded-full" />
-               </div>
-               <p className="font-black text-gray-400 uppercase tracking-[0.3em] text-[10px]">Sinkronisasi Data...</p>
+            <LoadingSpinner text="Sinkronisasi Data..." />
+          ) : error ? (
+            <div className="p-20">
+              <EmptyState
+                title="Terjadi Kesalahan"
+                description={error}
+                icon={AlertCircle}
+                actionLabel="Coba Lagi"
+                onClickAction={() => activeTab === 'global' ? fetchGlobal(selectedUjianId, currentPage) : fetchFormasi(selectedUjianId)}
+              />
             </div>
           ) : activeTab === 'formasi' && formasiError ? (
             <div className="p-20 flex flex-col items-center justify-center text-center">

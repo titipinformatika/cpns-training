@@ -3,38 +3,34 @@ import { useParams, Link } from 'react-router-dom';
 import { userApi } from '../../api/user';
 import type { DetailRiwayatResponse } from '../../types';
 import { 
-  Loader2, 
+  AlertCircle, 
+  Clock, 
   ChevronLeft, 
   CheckCircle2, 
   XCircle, 
-  AlertCircle,
-  Clock,
-  Target,
-  FileText,
-  HelpCircle,
-  ImageIcon
+  Target, 
+  FileText, 
+  HelpCircle, 
+  ImageIcon 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function DetailRiwayatPage() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<DetailRiwayatResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (id) fetchDetail(Number(id));
-  }, [id]);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchDetail = async (rid: number) => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await userApi.getRiwayatDetail(rid);
+      // ... mapping logic remains same ...
       const raw = res.data.data as any;
-      console.log('Detail Riwayat Raw:', raw);
-      
-      // Map Backend Data to Frontend Interface
-      // Backend returns flat fields like skor_tiu. We need to synthesize detail_kategori
       const mapped: DetailRiwayatResponse = {
         ...raw,
         ujian_nama: raw.ujian?.nama || 'Ujian Tanpa Nama',
@@ -62,9 +58,9 @@ export default function DetailRiwayatPage() {
           ]
         }))
       };
-
       setData(mapped);
     } catch (err) {
+      setError('Gagal mengambil detail riwayat. ID mungkin tidak valid.');
       console.error('Error fetching detail:', err);
       toast.error('Gagal mengambil detail riwayat');
     } finally {
@@ -78,33 +74,24 @@ export default function DetailRiwayatPage() {
     return `${m}m ${s}s`;
   };
 
+  useEffect(() => {
+    if (id) fetchDetail(Number(id));
+  }, [id]);
+
   if (isLoading) {
-    return (
-      <div className="flex flex-col h-screen items-center justify-center gap-4 bg-gray-50">
-        <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-        <p className="font-black text-gray-400 uppercase tracking-[0.3em] text-[10px]">Memuat Detail Evaluasi...</p>
-      </div>
-    );
+    return <LoadingSpinner fullScreen text="Memuat Detail Evaluasi..." />;
   }
 
-  if (!data) {
+  if (error || !data) {
     return (
-      <div className="flex flex-col h-screen items-center justify-center gap-6 bg-gray-50 p-10 text-center">
-        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center">
-          <AlertCircle className="w-10 h-10" />
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-2xl font-black text-gray-900">Data Riwayat Tidak Ditemukan</h3>
-          <p className="text-gray-500 max-w-sm mx-auto font-medium">
-            Maaf, kami tidak dapat menemukan detail untuk riwayat ujian ID #{id}. Silakan coba pilih kembali dari daftar riwayat.
-          </p>
-        </div>
-        <Link 
-          to="/riwayat" 
-          className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-indigo-100"
-        >
-          Kembali ke Daftar Riwayat
-        </Link>
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Data Tidak Ditemukan"
+          description={error || 'Detail riwayat tidak tersedia'}
+          icon={AlertCircle}
+          actionLabel="Kembali ke Riwayat"
+          actionHref="/riwayat"
+        />
       </div>
     );
   }

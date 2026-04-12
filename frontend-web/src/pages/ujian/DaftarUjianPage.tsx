@@ -11,10 +11,12 @@ import {
   ChevronRight, 
   Search, 
   Lock,
-  Loader2,
-  Trophy
+  Trophy,
+  AlertCircle
 } from 'lucide-react';
 import clsx from 'clsx';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function DaftarUjianPage() {
   const navigate = useNavigate();
@@ -22,6 +24,7 @@ export default function DaftarUjianPage() {
   
   const [exams, setExams] = useState<Ujian[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -33,19 +36,22 @@ export default function DaftarUjianPage() {
     { label: 'Kuis', value: 'QUIZ' },
   ];
 
-  useEffect(() => {
-    async function fetchExams() {
-      setLoading(true);
-      try {
-        const res = await ujianApi.getList({ page, limit: 6, tipe: activeTab });
-        setExams(res.data.data);
-        setTotalPages(res.data.meta.totalPages);
-      } catch (err) {
-        console.error('Gagal mengambil daftar ujian:', err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchExams = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await ujianApi.getList({ page, limit: 6, tipe: activeTab });
+      setExams(res.data.data);
+      setTotalPages(res.data.meta.totalPages);
+    } catch (err) {
+      setError('Gagal mengambil daftar ujian. Silakan coba lagi.');
+      console.error('Gagal mengambil daftar ujian:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchExams();
   }, [page, activeTab]);
 
@@ -53,6 +59,24 @@ export default function DaftarUjianPage() {
     setActiveTab(val);
     setPage(1);
   };
+
+  if (loading) {
+    return <LoadingSpinner fullScreen text="Memuat daftar ujian..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Terjadi Kesalahan"
+          description={error}
+          icon={AlertCircle}
+          actionLabel="Coba Lagi"
+          onClickAction={fetchExams}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-4 py-10">
@@ -84,11 +108,7 @@ export default function DaftarUjianPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex h-[40vh] items-center justify-center">
-          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
-        </div>
-      ) : exams.length > 0 ? (
+      {exams.length > 0 ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
             {exams.map((ujian) => {
@@ -196,13 +216,11 @@ export default function DaftarUjianPage() {
           )}
         </>
       ) : (
-        <div className="bg-white border border-dashed border-gray-300 rounded-3xl p-20 text-center">
-          <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Search className="w-10 h-10 text-gray-300" />
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Tidak Ada Ujian</h3>
-          <p className="text-gray-500">Belum ada ujian dalam kategori ini yang tersedia saat ini.</p>
-        </div>
+        <EmptyState
+          title="Tidak Ada Ujian"
+          description="Belum ada ujian dalam kategori ini yang tersedia saat ini."
+          icon={Search}
+        />
       )}
     </div>
   );

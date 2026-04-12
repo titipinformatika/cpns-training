@@ -10,9 +10,12 @@ import {
   Play, 
   Loader2, 
   AlertTriangle,
-  FileText
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function DetailUjianPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,24 +23,28 @@ export default function DetailUjianPage() {
   
   const [ujian, setUjian] = useState<Ujian | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  useEffect(() => {
-    async function fetchDetail() {
-      if (!id) return;
-      try {
-        const res = await ujianApi.getDetail(Number(id));
-        setUjian(res.data.data);
-      } catch (err) {
-        toast.error('Gagal mengambil detail ujian');
-        navigate('/ujian');
-      } finally {
-        setLoading(false);
-      }
+  const fetchDetail = async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await ujianApi.getDetail(Number(id));
+      setUjian(res.data.data);
+    } catch (err) {
+      setError('Gagal mengambil detail ujian. Silakan coba lagi.');
+      toast.error('Gagal mengambil detail ujian');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchDetail();
-  }, [id, navigate]);
+  }, [id]);
 
   const handleMulai = async () => {
     if (!ujian) return;
@@ -53,7 +60,6 @@ export default function DetailUjianPage() {
         const msg = err.response.data.message;
         if (msg.includes('berlangsung')) {
           toast.error('Ada ujian yang masih berlangsung.');
-          // Logic to continue previous exam could go here
         } else {
           toast.error(msg);
         }
@@ -67,14 +73,22 @@ export default function DetailUjianPage() {
   };
 
   if (loading) {
+    return <LoadingSpinner fullScreen text="Memuat detail ujian..." />;
+  }
+
+  if (error || !ujian) {
     return (
-      <div className="flex h-[70vh] items-center justify-center">
-        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Gagal Memuat Detail"
+          description={error || 'Ujian tidak ditemukan'}
+          icon={AlertCircle}
+          actionLabel="Kembali ke Daftar"
+          actionHref="/ujian"
+        />
       </div>
     );
   }
-
-  if (!ujian) return null;
 
   return (
     <div className="max-w-4xl mx-auto p-4 py-10">

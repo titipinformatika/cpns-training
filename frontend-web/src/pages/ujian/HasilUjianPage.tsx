@@ -9,37 +9,53 @@ import {
   Clock, 
   FileText,
   ChevronRight,
-  TrendingUp
+  TrendingUp,
+  AlertCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function HasilUjianPage() {
   const navigate = useNavigate();
   const [hasil, setHasil] = useState<HasilUjianResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const rawHasil = sessionStorage.getItem('hasil_ujian');
     if (!rawHasil) {
-      toast.error('Data hasil tidak ditemukan');
-      navigate('/ujian');
+      setIsLoading(false);
       return;
     }
 
     try {
       const data: HasilUjianResponse = JSON.parse(rawHasil);
-      // Validasi ID jika diperlukan, tapi untuk sekarang kita tampilkan yang ada
       setHasil(data);
-      // Clean up session storage so it doesn't persist forever
-      // sessionStorage.removeItem('hasil_ujian'); 
-      // ^ actually keep it temporarily in case of refresh on this page
     } catch (err) {
       toast.error('Gagal memuat hasil');
-      navigate('/ujian');
+    } finally {
+      setIsLoading(false);
     }
-  }, [navigate]);
+  }, []);
 
-  if (!hasil) return null;
+  if (isLoading) {
+    return <LoadingSpinner fullScreen text="Menghitung Skor Anda..." />;
+  }
+
+  if (!hasil) {
+    return (
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Data Hasil Tidak Ditemukan"
+          description="Maaf, hasil ujian Anda tidak dapat ditemukan. Silakan cek riwayat ujian Anda."
+          icon={AlertCircle}
+          actionLabel="Ke Daftar Ujian"
+          actionHref="/ujian"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-4 py-12 animate-in fade-in duration-700">

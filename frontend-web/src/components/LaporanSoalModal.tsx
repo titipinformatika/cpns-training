@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { sosialApi } from '../api/sosial';
 import { 
   X, 
@@ -8,12 +11,20 @@ import {
   Send 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import clsx from 'clsx';
 
 interface LaporanSoalModalProps {
   isOpen: boolean;
   onClose: () => void;
   soalId: number;
 }
+
+const laporanSchema = z.object({
+  jenis_laporan: z.string().min(1, 'Jenis laporan wajib dipilih'),
+  deskripsi: z.string().min(10, 'Deskripsi minimal 10 karakter'),
+});
+
+type LaporanForm = z.infer<typeof laporanSchema>;
 
 const JENIS_LAPORAN = [
   { value: 'JAWABAN_SALAH', label: 'Jawaban Salah' },
@@ -26,11 +37,29 @@ const JENIS_LAPORAN = [
 ];
 
 export default function LaporanSoalModal({ isOpen, onClose, soalId }: LaporanSoalModalProps) {
-  const [jenisLaporan, setJenisLaporan] = useState('');
-  const [deskripsi, setDeskripsi] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+
+  const { 
+    register, 
+    handleSubmit, 
+    reset,
+    formState: { errors, isSubmitting } 
+  } = useForm<LaporanForm>({
+    resolver: zodResolver(laporanSchema),
+  });
+
+  // Reset form when modal closes or opens with new ID
+  useEffect(() => {
+    if (isOpen) {
+      reset({
+        jenis_laporan: undefined,
+        deskripsi: ''
+      });
+      setSelectedFile(null);
+      setPreview(null);
+    }
+  }, [isOpen, soalId, reset]);
 
   if (!isOpen) return null;
 
@@ -38,7 +67,6 @@ export default function LaporanSoalModal({ isOpen, onClose, soalId }: LaporanSoa
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validation
     if (file.size > 2 * 1024 * 1024) {
       toast.error('Ukuran file maksimal 2MB');
       return;
@@ -52,33 +80,21 @@ export default function LaporanSoalModal({ isOpen, onClose, soalId }: LaporanSoa
     setPreview(URL.createObjectURL(file));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!jenisLaporan) return toast.error('Pilih jenis laporan');
-    if (deskripsi.length < 10) return toast.error('Deskripsi minimal 10 karakter');
-
+  const onSubmit = async (data: LaporanForm) => {
     const formData = new FormData();
     formData.append('soal_id', String(soalId));
-    formData.append('jenis_laporan', jenisLaporan);
-    formData.append('deskripsi', deskripsi);
+    formData.append('jenis_laporan', data.jenis_laporan);
+    formData.append('deskripsi', data.deskripsi);
     if (selectedFile) {
       formData.append('bukti_screenshot', selectedFile);
     }
 
-    setIsLoading(true);
     try {
       await sosialApi.kirimLaporan(formData);
       toast.success('Laporan berhasil dikirim!');
       onClose();
-      // Reset form
-      setJenisLaporan('');
-      setDeskripsi('');
-      setSelectedFile(null);
-      setPreview(null);
     } catch (err) {
       toast.error('Gagal mengirim laporan. Silakan coba lagi.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -105,30 +121,36 @@ export default function LaporanSoalModal({ isOpen, onClose, soalId }: LaporanSoa
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-extrabold text-gray-400 uppercase tracking-widest ml-1">Jenis Masalah</label>
             <select
-              value={jenisLaporan}
-              onChange={(e) => setJenisLaporan(e.target.value)}
-              className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-50 focus:border-indigo-500 focus:bg-white rounded-2xl font-bold text-gray-700 outline-none transition-all appearance-none"
+              {...register('jenis_laporan')}
+              className={clsx(
+                "w-full px-5 py-4 bg-gray-50 border-2 rounded-2xl font-bold text-gray-700 outline-none transition-all appearance-none",
+                errors.jenis_laporan ? "border-red-500 bg-red-50" : "border-gray-50 focus:border-indigo-500 focus:bg-white"
+              )}
             >
               <option value="">— Pilih Jenis Laporan —</option>
               {JENIS_LAPORAN.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
+            {errors.jenis_laporan && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.jenis_laporan.message}</p>}
           </div>
 
           <div className="space-y-2">
             <label className="text-xs font-extrabold text-gray-400 uppercase tracking-widest ml-1">Deskripsi Detail</label>
             <textarea
-              value={deskripsi}
-              onChange={(e) => setDeskripsi(e.target.value)}
+              {...register('deskripsi')}
               placeholder="Jelaskan masalah yang ditemukan pada soal ini..."
               rows={4}
-              className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-50 focus:border-indigo-500 focus:bg-white rounded-3xl font-bold text-gray-700 outline-none transition-all resize-none"
+              className={clsx(
+                "w-full px-5 py-4 bg-gray-50 border-2 rounded-3xl font-bold text-gray-700 outline-none transition-all resize-none",
+                errors.deskripsi ? "border-red-500 bg-red-50" : "border-gray-50 focus:border-indigo-500 focus:bg-white"
+              )}
             />
+            {errors.deskripsi && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.deskripsi.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -173,20 +195,20 @@ export default function LaporanSoalModal({ isOpen, onClose, soalId }: LaporanSoa
           <div className="pt-4 flex flex-col gap-3">
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70"
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <Send className="w-5 h-5" />
               )}
-              {isLoading ? 'Mengirim...' : 'Kirim Laporan Soal'}
+              {isSubmitting ? 'Mengirim...' : 'Kirim Laporan Soal'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="w-full py-2 text-sm font-bold text-gray-400 hover:text-gray-600 transition-all"
             >
               Batal

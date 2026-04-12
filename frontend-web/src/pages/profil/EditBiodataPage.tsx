@@ -19,8 +19,11 @@ import {
   GraduationCap, 
   Building2, 
   Briefcase,
-  Info
+  Info,
+  AlertCircle
 } from 'lucide-react';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 const biodataSchema = z.object({
   nama_lengkap: z.string().max(150, 'Maksimal 150 karakter').nullable(),
@@ -43,6 +46,7 @@ type BiodataForm = z.infer<typeof biodataSchema>;
 export default function EditBiodataPage() {
   const navigate = useNavigate();
   const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [formasiList, setFormasiList] = useState<any[]>([]);
   const [isLoadingFormasi, setIsLoadingFormasi] = useState(false);
   const [selectedJurusan, setSelectedJurusan] = useState<{id: number, nama: string} | null>(null);
@@ -79,45 +83,49 @@ export default function EditBiodataPage() {
   const watchedInstansiId = watch('instansi_id');
 
   // Load existing biodata
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await userApi.getBiodata();
-        if (res.data.data) {
-          const data = res.data.data;
-          
-          // Format date for input type="date"
-          let formattedDate = '';
-          if (data.tanggal_lahir) {
-            formattedDate = new Date(data.tanggal_lahir).toISOString().split('T')[0];
-          }
-
-          reset({
-            nama_lengkap: data.nama_lengkap,
-            no_hp: data.no_hp,
-            tanggal_lahir: formattedDate,
-            jenis_kelamin: data.jenis_kelamin,
-            alamat: data.alamat,
-            provinsi: data.provinsi,
-            kota: data.kota,
-            tingkat_pendidikan_id: data.tingkat_pendidikan_id,
-            jurusan_id: data.jurusan_id,
-            nama_universitas: data.nama_universitas,
-            tahun_lulus: data.tahun_lulus,
-            instansi_id: data.instansi_id,
-            formasi_id: data.formasi_id,
-          });
-
-          if (data.jurusan_id && data.jurusan) {
-            setSelectedJurusan({ id: data.jurusan_id, nama: data.jurusan.nama });
-          }
+  const loadData = async () => {
+    setError(null);
+    setInitialLoading(true);
+    try {
+      const res = await userApi.getBiodata();
+      if (res.data.data) {
+        const data = res.data.data;
+        
+        // Format date for input type="date"
+        let formattedDate = '';
+        if (data.tanggal_lahir) {
+          formattedDate = new Date(data.tanggal_lahir).toISOString().split('T')[0];
         }
-      } catch (err) {
-        toast.error('Gagal memuat data lama');
-      } finally {
-        setInitialLoading(false);
+
+        reset({
+          nama_lengkap: data.nama_lengkap,
+          no_hp: data.no_hp,
+          tanggal_lahir: formattedDate,
+          jenis_kelamin: data.jenis_kelamin,
+          alamat: data.alamat,
+          provinsi: data.provinsi,
+          kota: data.kota,
+          tingkat_pendidikan_id: data.tingkat_pendidikan_id,
+          jurusan_id: data.jurusan_id,
+          nama_universitas: data.nama_universitas,
+          tahun_lulus: data.tahun_lulus,
+          instansi_id: data.instansi_id,
+          formasi_id: data.formasi_id,
+        });
+
+        if (data.jurusan_id && data.jurusan) {
+          setSelectedJurusan({ id: data.jurusan_id, nama: data.jurusan.nama });
+        }
       }
+    } catch (err) {
+      setError('Gagal memuat data lama. Silakan muat ulang halaman.');
+      toast.error('Gagal memuat data lama');
+    } finally {
+      setInitialLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, [reset]);
 
@@ -153,9 +161,19 @@ export default function EditBiodataPage() {
   }
 
   if (initialLoading) {
+    return <LoadingSpinner fullScreen text="Memuat biodata Anda..." />;
+  }
+
+  if (error) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Gagal Memuat Data"
+          description={error}
+          icon={AlertCircle}
+          actionLabel="Coba Lagi"
+          onClickAction={loadData}
+        />
       </div>
     );
   }

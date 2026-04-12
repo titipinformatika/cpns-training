@@ -2,17 +2,19 @@ import { useState, useEffect } from 'react';
 import { sosialApi } from '../../api/sosial';
 import type { LaporanSoal } from '../../types';
 import { 
-  Loader2, 
   Calendar, 
   MessageSquare,
   ChevronLeft,
   ChevronRight,
   Inbox,
   ExternalLink,
-  ImageIcon
+  ImageIcon,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 const LABEL_JENIS: Record<string, string> = {
   JAWABAN_SALAH: 'Jawaban Salah',
@@ -29,23 +31,26 @@ export default function RiwayatLaporanPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchRiwayat(currentPage);
-  }, [currentPage]);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchRiwayat = async (page: number) => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await sosialApi.getRiwayatLaporan({ page, limit: 10 });
       setData(res.data.data);
       setTotalPages(res.data.meta.totalPages);
     } catch (err) {
+      setError('Gagal mengambil data riwayat laporan. Silakan coba lagi.');
       toast.error('Gagal mengambil data riwayat laporan');
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchRiwayat(currentPage);
+  }, [currentPage]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -70,6 +75,24 @@ export default function RiwayatLaporanPage() {
     });
   };
 
+  if (isLoading) {
+    return <LoadingSpinner fullScreen text="Memuat riwayat laporan..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Terjadi Kesalahan"
+          description={error}
+          icon={AlertCircle}
+          actionLabel="Coba Lagi"
+          onClickAction={() => fetchRiwayat(currentPage)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pt-24 pb-32 px-6">
       <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
@@ -81,19 +104,12 @@ export default function RiwayatLaporanPage() {
 
         {/* Content */}
         <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-100 border border-gray-100 overflow-hidden">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-32 gap-4">
-               <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
-               <p className="font-bold text-gray-400 uppercase tracking-widest text-xs">Memuat Data...</p>
-            </div>
-          ) : data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-32 text-center px-10">
-               <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-3xl flex items-center justify-center mb-6">
-                  <Inbox className="w-10 h-10" />
-               </div>
-               <h3 className="text-xl font-bold text-gray-900 mb-2">Belum ada laporan</h3>
-               <p className="text-gray-500 max-w-xs">Anda belum pernah melaporkan masalah pada soal ujian mana pun.</p>
-            </div>
+          {data.length === 0 ? (
+            <EmptyState
+              title="Belum ada laporan"
+              description="Anda belum pernah melaporkan masalah pada soal ujian mana pun."
+              icon={Inbox}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">

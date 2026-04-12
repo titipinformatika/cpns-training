@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { userApi } from '../../api/user';
 import type { RiwayatUjianItem } from '../../types';
 import { 
-  Loader2, 
   Calendar, 
   Clock, 
   ChevronRight, 
@@ -13,29 +12,34 @@ import {
   Inbox
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function RiwayatUjianPage() {
   const [data, setData] = useState<RiwayatUjianItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchRiwayat(currentPage);
-  }, [currentPage]);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchRiwayat = async (page: number) => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await userApi.getRiwayatUjian({ page, limit: 10 });
       setData(res.data.data);
       setTotalPages(res.data.meta.totalPages);
     } catch (err) {
+      setError('Gagal mengambil data riwayat. Silakan coba lagi.');
       toast.error('Gagal mengambil data riwayat');
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchRiwayat(currentPage);
+  }, [currentPage]);
 
   const formatDurasi = (detik: number) => {
     const m = Math.floor(detik / 60);
@@ -52,6 +56,24 @@ export default function RiwayatUjianPage() {
       minute: '2-digit'
     });
   };
+
+  if (isLoading) {
+    return <LoadingSpinner fullScreen text="Sinkronisasi Riwayat..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Terjadi Kesalahan"
+          description={error}
+          icon={AlertCircle}
+          actionLabel="Coba Lagi"
+          onClickAction={() => fetchRiwayat(currentPage)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pt-24 pb-32 px-6">
@@ -75,22 +97,14 @@ export default function RiwayatUjianPage() {
 
         {/* List Content */}
         <div className="bg-white rounded-[3rem] shadow-2xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
-           {isLoading ? (
-             <div className="flex flex-col items-center justify-center py-40 gap-6">
-                <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                <p className="font-black text-gray-400 uppercase tracking-[0.3em] text-[10px]">Sinkronisasi Riwayat...</p>
-             </div>
-           ) : data.length === 0 ? (
-             <div className="flex flex-col items-center justify-center py-40 text-center px-10">
-                <div className="w-24 h-24 bg-gray-50 text-gray-200 rounded-[2rem] flex items-center justify-center mb-8">
-                   <Inbox className="w-12 h-12" />
-                </div>
-                <h3 className="text-2xl font-black text-gray-900 mb-2">Belum ada riwayat</h3>
-                <p className="text-gray-500 max-w-sm mb-10 font-medium">Sepertinya Anda belum pernah mengikuti simulasi ujian. Mulai sekarang untuk melihat progres!</p>
-                <Link to="/ujian" className="bg-indigo-600 text-white px-10 py-4 rounded-3xl font-black shadow-xl shadow-indigo-100 hover:scale-105 transition-all">
-                   Daftar Sekarang
-                </Link>
-             </div>
+           {data.length === 0 ? (
+             <EmptyState
+               title="Belum ada riwayat"
+               description="Sepertinya Anda belum pernah mengikuti simulasi ujian. Mulai sekarang untuk melihat progres!"
+               icon={Inbox}
+               actionLabel="Daftar Sekarang"
+               actionHref="/ujian"
+             />
            ) : (
              <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">

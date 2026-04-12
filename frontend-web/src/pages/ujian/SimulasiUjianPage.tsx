@@ -65,6 +65,11 @@ export default function SimulasiUjianPage() {
       if (backupRagu) {
         setRaguList(new Set(JSON.parse(backupRagu)));
       }
+
+      const backupIndex = sessionStorage.getItem(`index_${data.hasil_ujian_id}`);
+      if (backupIndex) {
+        setCurrentIndex(parseInt(backupIndex, 10));
+      }
     } catch (err) {
       toast.error('Format data simulasi tidak valid');
       navigate('/ujian');
@@ -196,17 +201,23 @@ export default function SimulasiUjianPage() {
     }
   };
 
-  const handleAutoSubmit = async () => {
+  const handleAutoSubmit = useCallback(async () => {
     if (!examData || isSubmitLoading) return;
     setIsSubmitLoading(true);
     try {
       const res = await ujianApi.selesai(examData.hasil_ujian_id);
+
+      // Clear simulation backup
+      sessionStorage.removeItem(`answers_${examData.hasil_ujian_id}`);
+      sessionStorage.removeItem(`ragu_${examData.hasil_ujian_id}`);
+      sessionStorage.removeItem(`index_${examData.hasil_ujian_id}`);
+
       sessionStorage.setItem('hasil_ujian', JSON.stringify(res.data.data));
       navigate(`/ujian/hasil/${examData.hasil_ujian_id}`);
     } catch (err) {
       toast.error('Gagal mengirim jawaban otomatis');
     }
-  };
+  }, [examData, isSubmitLoading, navigate]);
 
   // Called when clicking the header red button
   const handleOpenSubmitModal = () => {
@@ -222,6 +233,12 @@ export default function SimulasiUjianPage() {
       // Save current answer first
       await saveAnswer(currentIndex);
       const res = await ujianApi.selesai(examData.hasil_ujian_id);
+      
+      // Clear simulation backup on successful completion
+      sessionStorage.removeItem(`answers_${examData.hasil_ujian_id}`);
+      sessionStorage.removeItem(`ragu_${examData.hasil_ujian_id}`);
+      sessionStorage.removeItem(`index_${examData.hasil_ujian_id}`);
+      
       sessionStorage.setItem('hasil_ujian', JSON.stringify(res.data.data));
       navigate(`/ujian/hasil/${examData.hasil_ujian_id}`);
     } catch (err) {
@@ -230,6 +247,23 @@ export default function SimulasiUjianPage() {
       setShowSubmitModal(false);
     }
   };
+
+  // Accidental Refresh/Close Prevention
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ''; // Required for Chrome
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Sync Current Index to Session Storage
+  useEffect(() => {
+    if (examData) {
+      sessionStorage.setItem(`index_${examData.hasil_ujian_id}`, currentIndex.toString());
+    }
+  }, [currentIndex, examData]);
 
   const formatWaktu = (detik: number) => {
     const jam = Math.floor(detik / 3600);
@@ -455,13 +489,13 @@ export default function SimulasiUjianPage() {
           <button
             onClick={currentIndex === soalList.length - 1 ? handleOpenSubmitModal : handleNext}
             className={clsx(
-              "px-8 py-3 rounded-2xl font-extrabold shadow-xl transition-all flex items-center gap-2 active:scale-95",
+              "px-4 sm:px-8 py-3 rounded-2xl font-extrabold shadow-xl transition-all flex items-center gap-2 active:scale-95",
               currentIndex === soalList.length - 1 
                 ? "bg-red-600 hover:bg-red-700 text-white shadow-red-100" 
                 : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100"
             )}
           >
-            {currentIndex === soalList.length - 1 ? 'Selesai Ujian' : 'Berikutnya'}
+            <span>{currentIndex === soalList.length - 1 ? 'Selesai' : 'Berikutnya'}</span>
             {currentIndex === soalList.length - 1 ? <CheckCircle2 className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
           </button>
         </div>

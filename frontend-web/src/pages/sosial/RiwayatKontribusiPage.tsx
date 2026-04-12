@@ -4,39 +4,44 @@ import { sosialApi } from '../../api/sosial';
 import type { KontribusiSoal } from '../../types';
 import { 
   Plus, 
-  Loader2, 
   Calendar, 
   Tag, 
   MessageSquare,
   ChevronLeft,
   ChevronRight,
-  Inbox
+  Inbox,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function RiwayatKontribusiPage() {
   const [data, setData] = useState<KontribusiSoal[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchRiwayat(currentPage);
-  }, [currentPage]);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchRiwayat = async (page: number) => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await sosialApi.getRiwayatKontribusi({ page, limit: 10 });
       setData(res.data.data);
       setTotalPages(res.data.meta.totalPages);
     } catch (err) {
+      setError('Gagal mengambil data riwayat kontribusi. Silakan coba lagi.');
       toast.error('Gagal mengambil data riwayat kontribusi');
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchRiwayat(currentPage);
+  }, [currentPage]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -69,6 +74,24 @@ export default function RiwayatKontribusiPage() {
     });
   };
 
+  if (isLoading) {
+    return <LoadingSpinner fullScreen text="Memuat riwayat kontribusi..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Terjadi Kesalahan"
+          description={error}
+          icon={AlertCircle}
+          actionLabel="Coba Lagi"
+          onClickAction={() => fetchRiwayat(currentPage)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pt-24 pb-32 px-6">
       <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
@@ -89,25 +112,14 @@ export default function RiwayatKontribusiPage() {
 
         {/* Content */}
         <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-100 border border-gray-100 overflow-hidden">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-32 gap-4">
-               <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
-               <p className="font-bold text-gray-400 uppercase tracking-widest text-xs">Memuat Data...</p>
-            </div>
-          ) : data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-32 text-center px-10">
-               <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-3xl flex items-center justify-center mb-6">
-                  <Inbox className="w-10 h-10" />
-               </div>
-               <h3 className="text-xl font-bold text-gray-900 mb-2">Belum ada kontribusi</h3>
-               <p className="text-gray-500 max-w-xs mb-8">Anda belum pernah mengontribusikan soal. Ayo mulai kontribusi sekarang!</p>
-               <Link 
-                to="/kontribusi"
-                className="bg-indigo-50 text-indigo-600 font-bold px-6 py-3 rounded-xl hover:bg-indigo-100 transition-all"
-               >
-                 Buat Kontribusi Pertama
-               </Link>
-            </div>
+          {data.length === 0 ? (
+            <EmptyState
+              title="Belum ada kontribusi"
+              description="Anda belum pernah mengontribusikan soal. Ayo mulai kontribusi sekarang!"
+              icon={Inbox}
+              actionLabel="Buat Kontribusi Pertama"
+              actionHref="/kontribusi"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">

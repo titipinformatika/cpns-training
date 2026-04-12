@@ -18,26 +18,31 @@ import {
   TrendingUp, 
   Calendar,
   ChevronRight,
-  Loader2,
+  AlertCircle,
   Award,
   Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function UserDashboardPage() {
   const [stats, setStats] = useState<DashboardStatistik | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStatistik();
   }, []);
 
   const fetchStatistik = async () => {
+    setError(null);
     try {
       const res = await userApi.getStatistik();
       setStats(res.data.data);
     } catch (err) {
+      setError('Gagal memuat data statistik. Silakan coba lagi.');
       toast.error('Gagal mengambil data statistik');
     } finally {
       setIsLoading(false);
@@ -45,10 +50,19 @@ export default function UserDashboardPage() {
   };
 
   if (isLoading) {
+    return <LoadingSpinner fullScreen text="Mempersiapkan Dashboard..." />;
+  }
+
+  if (error) {
     return (
-      <div className="flex flex-col h-screen items-center justify-center gap-4 bg-gray-50">
-        <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-        <p className="font-bold text-gray-400 uppercase tracking-[0.3em] text-xs">Mempersiapkan Dashboard...</p>
+      <div className="pt-24 min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <EmptyState
+          title="Terjadi Kesalahan"
+          description={error}
+          icon={AlertCircle}
+          actionLabel="Muat Ulang"
+          actionHref="/dashboard"
+        />
       </div>
     );
   }
