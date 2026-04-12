@@ -23,6 +23,19 @@ import LeaderboardPage from '../pages/leaderboard/LeaderboardPage';
 import MainLayout from '../components/layout/MainLayout';
 import NotFoundPage from '../pages/NotFoundPage';
 
+// Admin Context & Components
+import { AdminAuthProvider, useAdminAuth } from '../contexts/AdminAuthContext';
+import AdminLoginPage from '../pages/admin/AdminLoginPage';
+import AdminLayout from '../components/layout/AdminLayout';
+import AdminDashboardPage from '../pages/admin/AdminDashboardPage';
+import MasterDataPage from '../pages/admin/MasterDataPage';
+import BankSoalPage from '../pages/admin/BankSoalPage';
+import BankSoalDetailPage from '../pages/admin/BankSoalDetailPage';
+import PaketUjianPage from '../pages/admin/PaketUjianPage';
+import PaketUjianDetailPage from '../pages/admin/PaketUjianDetailPage';
+import ReviewLaporanPage from '../pages/admin/ReviewLaporanPage';
+import ReviewKontribusiPage from '../pages/admin/ReviewKontribusiPage';
+
 // Hanya bisa diakses jika BELUM login
 export function PublicRoute() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,6 +49,22 @@ export function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <div className="flex h-screen items-center justify-center bg-gray-50 text-indigo-600 font-black animate-pulse uppercase tracking-[0.2em]">Memuat...</div>;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <Outlet />;
+}
+
+// ======== ADMIN ROUTE GUARDS ========
+
+export function AdminPublicRoute() {
+  const { isAuthenticated, isLoading } = useAdminAuth();
+  if (isLoading) return <div className="flex h-screen items-center justify-center bg-gray-950 text-emerald-500 font-black animate-pulse uppercase tracking-[0.2em]">Memuat Admin...</div>;
+  if (isAuthenticated) return <Navigate to="/admin/dashboard" replace />;
+  return <Outlet />;
+}
+
+export function AdminPrivateRoute() {
+  const { isAuthenticated, isLoading } = useAdminAuth();
+  if (isLoading) return <div className="flex h-screen items-center justify-center bg-gray-950 text-emerald-500 font-black animate-pulse uppercase tracking-[0.2em]">Memuat Admin...</div>;
+  if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
   return <Outlet />;
 }
 
@@ -77,6 +106,28 @@ export function AppRoutes() {
           <Route path="/kontribusi/riwayat" element={<RiwayatKontribusiPage />} />
           <Route path="/laporan/riwayat" element={<RiwayatLaporanPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+        </Route>
+      </Route>
+
+      {/* ======== ADMIN ROUTES ======== */}
+      <Route element={<AdminAuthProvider><Outlet /></AdminAuthProvider>}>
+        {/* Admin Public */}
+        <Route element={<AdminPublicRoute />}>
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+        </Route>
+
+        {/* Admin Private */}
+        <Route element={<AdminPrivateRoute />}>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/master" element={<MasterDataPage />} />
+            <Route path="/admin/bank-soal" element={<BankSoalPage />} />
+            <Route path="/admin/bank-soal/:id" element={<BankSoalDetailPage />} />
+            <Route path="/admin/paket-ujian" element={<PaketUjianPage />} />
+            <Route path="/admin/paket-ujian/:id" element={<PaketUjianDetailPage />} />
+            <Route path="/admin/laporan" element={<ReviewLaporanPage />} />
+            <Route path="/admin/kontribusi" element={<ReviewKontribusiPage />} />
+          </Route>
         </Route>
       </Route>
 
