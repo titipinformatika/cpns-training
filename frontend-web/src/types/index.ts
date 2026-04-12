@@ -166,6 +166,15 @@ export interface LeaderboardEntry {
   };
 }
 
+export interface LeaderboardFormasiResponse {
+  leaderboard: LeaderboardEntry[];
+  info_formasi: {
+    instansi_nama: string;
+    formasi_nama: string;
+    total_pesaing: number;
+  };
+}
+
 // ===== Jenis Soal (untuk dropdown di kontribusi) =====
 export interface JenisSoal {
   id: number;

@@ -14,6 +14,7 @@ import HasilUjianPage from '../pages/ujian/HasilUjianPage';
 import KontribusiSoalPage from '../pages/sosial/KontribusiSoalPage';
 import RiwayatKontribusiPage from '../pages/sosial/RiwayatKontribusiPage';
 import RiwayatLaporanPage from '../pages/sosial/RiwayatLaporanPage';
+import LeaderboardPage from '../pages/leaderboard/LeaderboardPage';
 
 // Hanya bisa diakses jika BELUM login
 export function PublicRoute() {
@@ -62,6 +63,7 @@ export function AppRoutes() {
         <Route path="/kontribusi" element={<KontribusiSoalPage />} />
         <Route path="/kontribusi/riwayat" element={<RiwayatKontribusiPage />} />
         <Route path="/laporan/riwayat" element={<RiwayatLaporanPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
       </Route>
 
       {/* 404 */}
