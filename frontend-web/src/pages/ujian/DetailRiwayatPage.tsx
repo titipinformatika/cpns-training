@@ -31,15 +31,22 @@ export default function DetailRiwayatPage() {
     try {
       const res = await userApi.getRiwayatDetail(rid);
       const raw = res.data.data as any;
+      console.log('Detail Riwayat Raw:', raw);
       
       // Map Backend Data to Frontend Interface
+      // Backend returns flat fields like skor_tiu. We need to synthesize detail_kategori
       const mapped: DetailRiwayatResponse = {
         ...raw,
         ujian_nama: raw.ujian?.nama || 'Ujian Tanpa Nama',
         total_soal: raw.total_soal || raw.jawaban_ujian?.length || 0,
+        detail_kategori: raw.detail_kategori || [
+          { kode: 'TIU', nama: 'TIU', skor: raw.skor_tiu || 0, passing_grade: 80, lulus: (raw.skor_tiu || 0) >= 80 },
+          { kode: 'TWK', nama: 'TWK', skor: raw.skor_twk || 0, passing_grade: 65, lulus: (raw.skor_twk || 0) >= 65 },
+          { kode: 'TKP', nama: 'TKP', skor: raw.skor_tkp || 0, passing_grade: 166, lulus: (raw.skor_tkp || 0) >= 166 },
+        ],
         detail_soal: (raw.jawaban_ujian || []).map((j: any) => ({
           soal_id: j.ujian_soal?.soal?.id,
-          pertanyaan: j.ujian_soal?.soal?.pertanyaan,
+          pertanyaan: j.ujian_soal?.soal?.pertanyaan || 'Pertanyaan tidak tersedia',
           pertanyaan_gambar: j.ujian_soal?.soal?.pertanyaan_gambar,
           jawaban_user: j.jawaban_user,
           jawaban_benar: j.ujian_soal?.soal?.jawaban_benar,
@@ -47,17 +54,18 @@ export default function DetailRiwayatPage() {
           pembahasan: j.ujian_soal?.soal?.pembahasan,
           pembahasan_gambar: j.ujian_soal?.soal?.pembahasan_gambar,
           opsi: [
-            { label: 'A', teks: j.ujian_soal?.soal?.opsi_a },
-            { label: 'B', teks: j.ujian_soal?.soal?.opsi_b },
-            { label: 'C', teks: j.ujian_soal?.soal?.opsi_c },
-            { label: 'D', teks: j.ujian_soal?.soal?.opsi_d },
-            { label: 'E', teks: j.ujian_soal?.soal?.opsi_e },
+            { label: 'A', teks: j.ujian_soal?.soal?.opsi_a || '-' },
+            { label: 'B', teks: j.ujian_soal?.soal?.opsi_b || '-' },
+            { label: 'C', teks: j.ujian_soal?.soal?.opsi_c || '-' },
+            { label: 'D', teks: j.ujian_soal?.soal?.opsi_d || '-' },
+            { label: 'E', teks: j.ujian_soal?.soal?.opsi_e || '-' },
           ]
         }))
       };
 
       setData(mapped);
     } catch (err) {
+      console.error('Error fetching detail:', err);
       toast.error('Gagal mengambil detail riwayat');
     } finally {
       setIsLoading(false);

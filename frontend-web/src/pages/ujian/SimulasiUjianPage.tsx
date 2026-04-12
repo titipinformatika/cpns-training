@@ -366,23 +366,6 @@ export default function SimulasiUjianPage() {
               </div>
             </div>
 
-            {/* Ragu Checkbox */}
-            <div className="flex justify-start ml-0 md:ml-14">
-              <label className="group flex items-center gap-3 cursor-pointer bg-amber-50 px-6 py-4 rounded-2xl border border-amber-100 shadow-sm transition-all hover:bg-amber-100">
-                <div className="relative flex items-center justify-center">
-                  <input 
-                    type="checkbox" 
-                    checked={raguList.has(currentSoal.ujian_soal_id)}
-                    onChange={toggleRagu}
-                    className="appearance-none w-6 h-6 border-2 border-amber-400 rounded-lg bg-white checked:bg-amber-400 transition-all cursor-pointer"
-                  />
-                  {raguList.has(currentSoal.ujian_soal_id) && (
-                    <HelpCircle className="absolute w-4 h-4 text-white pointer-events-none" />
-                  )}
-                </div>
-                <span className="font-bold text-amber-900 text-sm">Tandai Ragu-ragu</span>
-              </label>
-            </div>
           </div>
         </main>
 
@@ -394,7 +377,7 @@ export default function SimulasiUjianPage() {
               Navigasi Soal
             </h4>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-200">
+             <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-200">
             <div className="grid grid-cols-5 gap-3">
               {soalList.map((soalItem, i) => {
                 const isTerjawab = answers.has(soalItem.ujian_soal_id);
@@ -409,7 +392,7 @@ export default function SimulasiUjianPage() {
                       "w-11 h-11 rounded-xl text-xs font-extrabold flex items-center justify-center transition-all",
                       isActive ? "ring-4 ring-indigo-100 shadow-lg scale-110" : "hover:scale-105",
                       isActive && "border-2 border-indigo-600 bg-white text-indigo-600",
-                      !isActive && isRagu && "bg-amber-400 text-white shadow-md shadow-amber-100",
+                      !isActive && isRagu && "bg-amber-400 text-white shadow-md shadow-amber-200 animate-pulse",
                       !isActive && isTerjawab && !isRagu && "bg-emerald-500 text-white shadow-md shadow-emerald-100",
                       !isActive && !isTerjawab && "bg-gray-100 text-gray-400"
                     )}
@@ -424,7 +407,7 @@ export default function SimulasiUjianPage() {
           <div className="p-6 bg-gray-50 border-t border-gray-200 space-y-4">
              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
                 <span>Terjawab: {answers.size}</span>
-                <span>Ragu: {raguList.size}</span>
+                <span className="text-amber-600">Ragu: {raguList.size}</span>
              </div>
              <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
                 <div 
@@ -438,28 +421,48 @@ export default function SimulasiUjianPage() {
 
       {/* Footer Navigation */}
       <footer className="bg-white border-t border-gray-200 p-4 md:p-6 fixed bottom-0 w-full md:w-[calc(100%-20rem)] z-40">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <button
-            onClick={handlePrev}
-            disabled={currentIndex === 0}
-            className="flex items-center gap-2 px-6 py-3 border-2 border-transparent text-gray-500 hover:text-indigo-600 font-extrabold disabled:opacity-30 transition-all"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            Sebelumnya
-          </button>
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrev}
+              disabled={currentIndex === 0}
+              className="flex items-center gap-2 px-4 md:px-6 py-3 border-2 border-transparent text-gray-500 hover:text-indigo-600 font-extrabold disabled:opacity-30 transition-all"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span className="hidden sm:inline">Sebelumnya</span>
+            </button>
 
-          <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-2xl">
-            <AlertCircle className="w-4 h-4 text-gray-400" />
-            <span className="text-[10px] font-bold text-gray-500 uppercase">Input otomatis tersimpan</span>
+            {/* Ragu-ragu Button in Footer */}
+            <button 
+              onClick={toggleRagu}
+              className={clsx(
+                "flex items-center gap-2 px-6 py-3 rounded-2xl font-extrabold border-2 transition-all active:scale-[0.98]",
+                raguList.has(currentSoal.ujian_soal_id)
+                  ? "bg-amber-400 border-amber-400 text-white shadow-lg shadow-amber-100"
+                  : "bg-white border-gray-100 text-gray-400 hover:border-amber-200"
+              )}
+            >
+              <HelpCircle className={clsx("w-5 h-5", raguList.has(currentSoal.ujian_soal_id) && "animate-pulse")} />
+              <span>Ragu-ragu</span>
+            </button>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-2xl border border-gray-100">
+            <AlertCircle className="w-4 h-4 text-gray-300" />
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight font-mono">Autosave Enabled</span>
           </div>
 
           <button
-            onClick={handleNext}
-            disabled={currentIndex === soalList.length - 1}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-2xl font-extrabold shadow-xl shadow-indigo-100 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-30"
+            onClick={currentIndex === soalList.length - 1 ? handleOpenSubmitModal : handleNext}
+            className={clsx(
+              "px-8 py-3 rounded-2xl font-extrabold shadow-xl transition-all flex items-center gap-2 active:scale-95",
+              currentIndex === soalList.length - 1 
+                ? "bg-red-600 hover:bg-red-700 text-white shadow-red-100" 
+                : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100"
+            )}
           >
-            Berikutnya
-            <ChevronRight className="w-5 h-5" />
+            {currentIndex === soalList.length - 1 ? 'Selesai Ujian' : 'Berikutnya'}
+            {currentIndex === soalList.length - 1 ? <CheckCircle2 className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
           </button>
         </div>
       </footer>
@@ -497,20 +500,54 @@ export default function SimulasiUjianPage() {
       {showSubmitModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-10 text-center animate-in zoom-in duration-300">
-            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className={clsx(
+              "w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6",
+              raguList.size > 0 || answers.size < soalList.length ? "bg-amber-50 text-amber-500" : "bg-red-50 text-red-600"
+            )}>
               <AlertTriangle className="w-10 h-10" />
             </div>
             
             <h3 className="text-2xl font-extrabold text-gray-900 mb-2">Selesaikan Ujian?</h3>
             <p className="text-gray-500 mb-8 leading-relaxed">
-              Anda telah menjawab <span className="font-bold text-indigo-600">{answers.size}</span> dari <span className="font-bold">{soalList.length}</span> soal. Yakin ingin mengakhiri sesi sekarang?
+              Anda telah menjawab <span className="font-bold text-indigo-600">{answers.size}</span> dari <span className="font-bold text-gray-900">{soalList.length}</span> soal.
             </p>
+
+            {/* Warning Boxes */}
+            <div className="space-y-3 mb-8">
+              {answers.size < soalList.length && (
+                <div className="bg-red-50 text-red-700 p-4 rounded-2xl flex items-center gap-3 text-left">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <p className="text-xs font-bold leading-snug">
+                    Terdapat <span className="text-red-900">{soalList.length - answers.size}</span> soal yang belum dijawab.
+                  </p>
+                </div>
+              )}
+              {raguList.size > 0 && (
+                <div className="bg-amber-50 text-amber-700 p-4 rounded-2xl flex items-center gap-3 text-left border border-amber-100">
+                  <HelpCircle className="w-5 h-5 shrink-0" />
+                  <p className="text-xs font-bold leading-snug">
+                    Terdapat <span className="text-amber-900">{raguList.size}</span> soal yang masih ditandai "Ragu-ragu".
+                  </p>
+                </div>
+              )}
+              {answers.size === soalList.length && raguList.size === 0 && (
+                <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl flex items-center gap-3 text-left">
+                  <CheckCircle2 className="w-5 h-5 shrink-0" />
+                  <p className="text-xs font-bold leading-snug">
+                    Luar biasa! Semua soal telah dijawab dengan mantap.
+                  </p>
+                </div>
+              )}
+            </div>
             
             <div className="flex flex-col gap-3">
               <button
                 onClick={confirmSubmit}
                 disabled={isSubmitLoading}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-red-100 min-h-[56px] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70"
+                className={clsx(
+                  "w-full text-white font-bold py-4 rounded-2xl shadow-xl min-h-[56px] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70",
+                  raguList.size > 0 || answers.size < soalList.length ? "bg-amber-500 hover:bg-amber-600 shadow-amber-100" : "bg-red-600 hover:bg-red-700 shadow-red-100"
+                )}
               >
                 {isSubmitLoading ? (
                   <>
