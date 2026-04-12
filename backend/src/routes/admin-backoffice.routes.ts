@@ -4,7 +4,7 @@ import {
   createBankSoal, getBankSoal, getBankSoalById, updateBankSoal, deleteBankSoal 
 } from '../controllers/admin-bank-soal.controller.js';
 import { 
-  createSoal, getSoalByBank, updateSoal, deleteSoal 
+  createSoal, getSoalByBank, updateSoal, deleteSoal, toggleActiveSoal 
 } from '../controllers/admin-soal.controller.js';
 import { 
   createPaketUjian, getPaketUjian, updatePaketUjian, 
@@ -47,6 +47,7 @@ const soalUploadFields = [
 
 router.post('/soal', uploadSoal.fields(soalUploadFields), validate(createSoalSchema), createSoal);
 router.get('/soal/bank/:bank_soal_id', getSoalByBank);
+router.patch('/soal/:id/toggle-active', validateParams(idParamSchema), toggleActiveSoal);
 router.patch('/soal/:id', uploadSoal.fields(soalUploadFields), validateParams(idParamSchema), validate(updateSoalSchema), updateSoal);
 router.delete('/soal/:id', validateParams(idParamSchema), deleteSoal);
 

@@ -1,15 +1,27 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import morgan from 'morgan';
+import compression from 'compression';
 import path from 'path';
 import { errorHandler } from './middlewares/error.middleware.js';
+import { apiLimiter } from './middlewares/rateLimiter.middleware.js';
 import { UPLOAD_DIR } from './config/constants.js';
+import { env } from './config/env.js';
 
 const app = express();
 
-// === Security Middleware ===
+// === Security & Utility Middleware ===
 app.use(helmet());
-app.use(cors());
+app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(compression());
+app.use(cors({
+  origin: env.CORS_ORIGIN === '*' ? '*' : env.CORS_ORIGIN.split(','),
+  credentials: true,
+}));
+
+// === Rate Limiting ===
+app.use('/api', apiLimiter);
 
 // === Body Parsing ===
 app.use(express.json({ limit: '10mb' }));

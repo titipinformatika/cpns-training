@@ -47,3 +47,8 @@ export const refreshTokenSchema = z.object({
     .string()
     .min(1, 'Refresh token wajib diisi'),
 });
+// === Change Password ===
+export const changePasswordSchema = z.object({
+  old_password: z.string().min(1, 'Password lama wajib diisi'),
+  new_password: z.string().min(6, 'Password baru minimal 6 karakter').max(100),
+});

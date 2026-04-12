@@ -1,23 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import { successResponse } from '../utils/response.js';
+import { serializeFormasi } from '../utils/serializer.js';
 import { AppError } from '../middlewares/error.middleware.js';
-
-// === Helper: Serialize BigInt for JSON ===
-const serializeFormasi = (data: any) => {
-  if (Array.isArray(data)) {
-    return data.map((item) => ({
-      ...item,
-      gaji_min: item.gaji_min ? Number(item.gaji_min) : null,
-      gaji_max: item.gaji_max ? Number(item.gaji_max) : null,
-    }));
-  }
-  return {
-    ...data,
-    gaji_min: data.gaji_min ? Number(data.gaji_min) : null,
-    gaji_max: data.gaji_max ? Number(data.gaji_max) : null,
-  };
-};
 
 export async function getKategori(req: Request, res: Response, next: NextFunction) {
   try {

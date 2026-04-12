@@ -2,48 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { HEARTBEAT_TIMEOUT_SECONDS } from '../config/constants.js';
-
-/**
- * Helper: Cek apakah sesi sudah timeout berdasarkan waktu server.
- * Jika ya, update statusnya menjadi TIMEOUT.
- */
-async function checkAndHandleTimeout(hasilUjianId: number) {
-  const hasil = await prisma.hasilUjian.findUnique({
-    where: { id: hasilUjianId },
-    include: { sesi_ujian: true },
-  });
-
-  if (!hasil || hasil.status !== 'BERLANGSUNG') return hasil;
-
-  const now = new Date();
-  const elapsedSeconds = (now.getTime() - hasil.waktu_mulai.getTime()) / 1000;
-  
-  // Jika sudah melewati durasi + toleransi heartbeat
-  if (elapsedSeconds > hasil.durasi_detik + HEARTBEAT_TIMEOUT_SECONDS) {
-    const updated = await prisma.$transaction(async (tx) => {
-      const h = await tx.hasilUjian.update({
-        where: { id: hasilUjianId },
-        data: {
-          status: 'TIMEOUT',
-          waktu_selesai: now,
-        },
-      });
-
-      await tx.sesiUjian.update({
-        where: { hasil_ujian_id: hasilUjianId },
-        data: {
-          status_sesi: 'SELESAI',
-          sisa_waktu_detik: 0,
-        },
-      });
-
-      return h;
-    });
-    return updated;
-  }
-
-  return hasil;
-}
+import * as engineService from '../services/ujian-engine.service.js';
 
 /**
  * POST /ujian/mulai
@@ -73,7 +32,7 @@ export async function mulaiUjian(req: Request, res: Response, next: NextFunction
 
     if (sesiAktif) {
       // Cek apakah sebenarnya sudah timeout
-      const result = await checkAndHandleTimeout(sesiAktif.id);
+      const result = await engineService.checkAndHandleTimeout(sesiAktif.id);
       if (result && result.status === 'BERLANGSUNG') {
         res.status(400).json(errorResponse('Anda masih memiliki ujian yang sedang berlangsung'));
         return;
@@ -179,7 +138,7 @@ export async function heartbeat(req: Request, res: Response, next: NextFunction)
     const userId = req.user!.id;
 
     // Cek timeout dulu
-    const hasil = await checkAndHandleTimeout(hasil_ujian_id);
+    const hasil = await engineService.checkAndHandleTimeout(hasil_ujian_id);
 
     if (!hasil || hasil.user_id !== userId) {
       res.status(404).json(errorResponse('Data ujian tidak ditemukan'));
@@ -228,7 +187,7 @@ export async function simpanJawaban(req: Request, res: Response, next: NextFunct
     const userId = req.user!.id;
 
     // 1. Validasi HasilUjian & Timeout
-    const hasil = await checkAndHandleTimeout(hasil_ujian_id);
+    const hasil = await engineService.checkAndHandleTimeout(hasil_ujian_id);
 
     if (!hasil || hasil.user_id !== userId) {
       res.status(404).json(errorResponse('Data ujian tidak ditemukan'));
@@ -252,25 +211,13 @@ export async function simpanJawaban(req: Request, res: Response, next: NextFunct
     });
 
     if (!uSoal || uSoal.ujian_id !== hasil.ujian_id) {
+      console.log('DEBUG: Soal not found or ujian_id mismatch');
       res.status(404).json(errorResponse('Soal tidak ditemukan untuk paket ujian ini'));
       return;
     }
 
     // 3. Hitung Skor
-    let isBenar: boolean | null = null;
-    let skorDiperoleh = 0;
-
-    if (jawaban) {
-      const isTKP = uSoal.soal.kategori_soal.kode === 'TKP';
-
-      if (isTKP && uSoal.skor_tkp) {
-        const field = `skor_${jawaban.toLowerCase()}` as keyof typeof uSoal.skor_tkp;
-        skorDiperoleh = (uSoal.skor_tkp[field] as number) || 0;
-      } else if (!isTKP) {
-        isBenar = (jawaban === uSoal.soal.jawaban_benar);
-        skorDiperoleh = isBenar ? uSoal.skor : 0;
-      }
-    }
+    const { isBenar, skorDiperoleh } = engineService.calculateScore(jawaban, uSoal);
 
     const now = new Date();
     const waktuJawabDetik = Math.floor((now.getTime() - hasil.waktu_mulai.getTime()) / 1000);
@@ -356,7 +303,7 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
     const userId = req.user!.id;
 
     // 1. Validasi & Cek Timeout
-    const hasil = await checkAndHandleTimeout(hasil_ujian_id);
+    const hasil = await engineService.checkAndHandleTimeout(hasil_ujian_id);
 
     if (!hasil || hasil.user_id !== userId) {
       res.status(404).json(errorResponse('Data ujian tidak ditemukan'));
@@ -368,8 +315,7 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    const now = new Date();
-    const durasiActual = Math.floor((now.getTime() - hasil.waktu_mulai.getTime()) / 1000);
+    const durasiActual = Math.floor((new Date().getTime() - hasil.waktu_mulai.getTime()) / 1000);
 
     // 2. Ambil Semua Jawaban & Kategori
     const semuaJawaban = await prisma.jawabanUjian.findMany({
@@ -385,62 +331,11 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
       }
     });
 
-    const semuaKategori = await prisma.kategoriSoal.findMany();
-
-    // 3. Kalkulasi Skor
-    const skorPerKategori: Record<string, number> = {};
-    const statsKategori: Record<string, { dijawab: number, benar: number, salah: number }> = {};
-    const statsJenis: Record<number, { dijawab: number, benar: number, salah: number, skor: number }> = {};
-
-    let totalBenar = 0;
-    let totalSalah = 0;
-
-    for (const j of semuaJawaban) {
-      const kodeKat = j.ujian_soal.soal.kategori_soal.kode;
-      const jenisId = j.ujian_soal.soal.jenis_soal_id;
-
-      // Inisialisasi
-      skorPerKategori[kodeKat] = (skorPerKategori[kodeKat] || 0) + j.skor_diperoleh;
-      
-      if (!statsKategori[kodeKat]) statsKategori[kodeKat] = { dijawab: 0, benar: 0, salah: 0 };
-      if (!statsJenis[jenisId]) statsJenis[jenisId] = { dijawab: 0, benar: 0, salah: 0, skor: 0 };
-
-      if (j.jawaban_user) {
-        statsKategori[kodeKat].dijawab++;
-        statsJenis[jenisId].dijawab++;
-        statsJenis[jenisId].skor += j.skor_diperoleh;
-
-        if (j.is_benar === true) {
-          totalBenar++;
-          statsKategori[kodeKat].benar++;
-          statsJenis[jenisId].benar++;
-        } else if (j.is_benar === false) {
-          totalSalah++;
-          statsKategori[kodeKat].salah++;
-          statsJenis[jenisId].salah++;
-        }
-      }
-    }
-
-    const skorTiu = skorPerKategori['TIU'] || 0;
-    const skorTwk = skorPerKategori['TWK'] || 0;
-    const skorTkp = skorPerKategori['TKP'] || 0;
-    const skorTotal = skorTiu + skorTwk + skorTkp;
-
-    // 4. Cek Kelulusan (Semua kategori harus >= passing grade)
-    let isLulus = true;
-    const detailLulus = semuaKategori.map(kat => {
-      const skorUser = skorPerKategori[kat.kode] || 0;
-      const lulusKat = skorUser >= kat.passing_grade;
-      if (!lulusKat) isLulus = false;
-      return {
-        kode: kat.kode,
-        nama: kat.nama,
-        skor: skorUser,
-        passing_grade: kat.passing_grade,
-        lulus: lulusKat
-      };
-    });
+    // 3. Kalkulasi Skor & Statistik (Service)
+    const {
+      now, totalBenar, totalSalah, skorTiu, skorTwk, skorTkp,
+      skorTotal, isLulus, detailLulus, statsKategori, statsJenis, semuaKategori
+    } = await engineService.finalizeExamStatistics(userId, hasil_ujian_id, semuaJawaban);
 
     const jumlahDijawab = totalBenar + totalSalah;
     const jumlahKosong = hasil.total_soal - jumlahDijawab;
@@ -478,7 +373,7 @@ export async function selesaiUjian(req: Request, res: Response, next: NextFuncti
       // c. Update Statistik User Kategori
       for (const kat of semuaKategori) {
         const sKat = statsKategori[kat.kode] || { dijawab: 0, benar: 0, salah: 0 };
-        const skorKat = skorPerKategori[kat.kode] || 0;
+        const skorKat = kat.kode === 'TIU' ? skorTiu : (kat.kode === 'TWK' ? skorTwk : (kat.kode === 'TKP' ? skorTkp : 0));
 
         const existing = await tx.statistikUserKategori.findUnique({
           where: { user_id_kategori_soal_id: { user_id: userId, kategori_soal_id: kat.id } }

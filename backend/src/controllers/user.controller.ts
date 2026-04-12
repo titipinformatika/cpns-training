@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import { successResponse, paginatedResponse, errorResponse } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
+import { sanitizeObject } from '../utils/sanitize.js';
 import { AppError } from '../middlewares/error.middleware.js';
 
 /**
@@ -35,10 +36,13 @@ export async function getBiodata(req: Request, res: Response, next: NextFunction
  */
 export async function upsertBiodata(req: Request, res: Response, next: NextFunction) {
   try {
-    const { tanggal_lahir, ...body } = req.body;
+    const body = sanitizeObject(req.body, [
+      'nama_lengkap', 'alamat', 'provinsi', 'kota', 'nama_universitas'
+    ]);
+    const { tanggal_lahir, ...dataToUpsert } = body;
     
     const updateData: any = {
-      ...body,
+      ...dataToUpsert,
       tanggal_lahir: tanggal_lahir ? new Date(tanggal_lahir) : undefined,
     };
 
