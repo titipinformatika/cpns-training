@@ -66,6 +66,7 @@ export interface KategoriSoal {
   passing_grade: number;
 }
 
+// ===== Ujian & Simulasi =====
 export interface Ujian {
   id: number;
   nama: string;
@@ -76,6 +77,76 @@ export interface Ujian {
   is_active: boolean;
   created_at: string;
   _count: { ujian_soal: number };
+}
+
+export interface SoalSimulasi {
+  ujian_soal_id: number;
+  nomor_urut: number;
+  pertanyaan: string;
+  pertanyaan_gambar: string | null;
+  opsi_a: string;
+  opsi_a_gambar: string | null;
+  opsi_b: string;
+  opsi_b_gambar: string | null;
+  opsi_c: string;
+  opsi_c_gambar: string | null;
+  opsi_d: string;
+  opsi_d_gambar: string | null;
+  opsi_e: string;
+  opsi_e_gambar: string | null;
+  kategori_soal: {
+    kode: string;
+    nama: string;
+  };
+}
+
+export interface MulaiUjianResponse {
+  hasil_ujian_id: number;
+  sesi_ujian_id: number;
+  sisa_waktu_detik: number;
+  total_soal: number;
+  soal_list: SoalSimulasi[];
+}
+
+export interface HeartbeatResponse {
+  sisa_waktu_detik: number;
+  status: 'AKTIF' | 'TIMEOUT' | 'SELESAI';
+}
+
+export interface JawabResponse {
+  ujian_soal_id: number;
+  jawaban_user: string | null;
+  is_ragu: boolean;
+  totalTerjawab: number;
+  totalBelumJawab: number;
+  totalRagu: number;
+}
+
+export interface KategoriSkor {
+  kode: string;
+  nama: string;
+  skor: number;
+  passing_grade: number;
+  lulus: boolean;
+}
+
+export interface HasilUjianResponse {
+  hasil_ujian_id: number;
+  status: string;
+  waktu_mulai: string;
+  waktu_selesai: string;
+  durasi_pengerjaan_detik: number;
+  total_soal: number;
+  jumlah_dijawab: number;
+  jumlah_benar: number;
+  jumlah_salah: number;
+  jumlah_kosong: number;
+  skor_tiu: number;
+  skor_twk: number;
+  skor_tkp: number;
+  skor_total: number;
+  is_lulus: boolean;
+  detail_kategori: KategoriSkor[];
 }
 
 // ===== Leaderboard =====
