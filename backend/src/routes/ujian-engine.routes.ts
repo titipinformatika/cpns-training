@@ -42,4 +42,16 @@ router.post(
   ujianController.simpanJawaban
 );
 
+/**
+ * @route   POST /api/ujian/selesai
+ * @desc    Akhiri ujian dan hitung skor
+ * @access  Private (User)
+ */
+router.post(
+  '/selesai',
+  authenticateUser,
+  validate(ujianValidator.selesaiUjianSchema),
+  ujianController.selesaiUjian
+);
+
 export default router;

@@ -186,4 +186,118 @@ describe('Ujian Engine Controller', () => {
       }));
     });
   });
+
+  describe('selesaiUjian()', () => {
+    it('harus berhasil menyelesaikan ujian dan menghitung skor dengan benar', async () => {
+      const { req, res, next } = createMocks();
+      req.body = { hasil_ujian_id: 100 };
+
+      const startTime = new Date(Date.now() - 3600000); // 1 jam lalu
+      jest.spyOn(prisma.hasilUjian, 'findUnique').mockResolvedValue({
+        id: 100, user_id: 1, status: 'BERLANGSUNG', waktu_mulai: startTime, durasi_detik: 7200, total_soal: 3
+      } as any);
+
+      // Mock Jawaban
+      jest.spyOn(prisma.jawabanUjian, 'findMany').mockResolvedValue([
+        { 
+          skor_diperoleh: 5, is_benar: true, jawaban_user: 'A',
+          ujian_soal: { soal: { kategori_soal: { kode: 'TIU', id: 1 }, jenis_soal_id: 1 } } 
+        },
+        { 
+          skor_diperoleh: 0, is_benar: false, jawaban_user: 'B',
+          ujian_soal: { soal: { kategori_soal: { kode: 'TWK', id: 2 }, jenis_soal_id: 2 } } 
+        },
+        { 
+          skor_diperoleh: 4, is_benar: null, jawaban_user: 'C',
+          ujian_soal: { soal: { kategori_soal: { kode: 'TKP', id: 3 }, jenis_soal_id: 3 } } 
+        }
+      ] as any);
+
+      // Mock Kategori & Passing Grade
+      jest.spyOn(prisma.kategoriSoal, 'findMany').mockResolvedValue([
+        { id: 1, kode: 'TIU', nama: 'TIU', passing_grade: 80 },
+        { id: 2, kode: 'TWK', nama: 'TWK', passing_grade: 65 },
+        { id: 3, kode: 'TKP', nama: 'TKP', passing_grade: 166 },
+      ] as any);
+
+      // Mock Transaction
+      jest.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
+        return callback(prisma);
+      });
+
+      jest.spyOn(prisma.hasilUjian, 'update').mockResolvedValue({} as any);
+      jest.spyOn(prisma.sesiUjian, 'update').mockResolvedValue({} as any);
+      jest.spyOn(prisma.statistikUserKategori, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.statistikUserKategori, 'create').mockResolvedValue({} as any);
+      jest.spyOn(prisma.statistikUserJenis, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.statistikUserJenis, 'create').mockResolvedValue({} as any);
+
+      await ujianController.selesaiUjian(req, res, next);
+
+      const jsonResponse = (res.json as jest.Mock).mock.calls[0]![0] as any;
+      expect(jsonResponse.success).toBe(true);
+      expect(jsonResponse.data.skor_total).toBe(9); // 5 + 0 + 4
+      expect(jsonResponse.data.is_lulus).toBe(false); // Semua di bawah pass grade
+    });
+
+    it('harus menolak jika ujian sudah selesai atau timeout', async () => {
+      const { req, res, next } = createMocks();
+      req.body = { hasil_ujian_id: 100 };
+
+      jest.spyOn(prisma.hasilUjian, 'findUnique').mockResolvedValue({
+        id: 100, user_id: 1, status: 'SELESAI'
+      } as any);
+
+      await ujianController.selesaiUjian(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(((res.json as jest.Mock).mock.calls[0]![0] as any).message).toContain('berakhir');
+    });
+
+    it('harus lulus jika semua skor kategori di atas passing grade', async () => {
+      const { req, res, next } = createMocks();
+      req.body = { hasil_ujian_id: 100 };
+
+      const startTime = new Date(Date.now() - 1000);
+      jest.spyOn(prisma.hasilUjian, 'findUnique').mockResolvedValue({
+        id: 100, user_id: 1, status: 'BERLANGSUNG', waktu_mulai: startTime, durasi_detik: 3600, total_soal: 3
+      } as any);
+
+      jest.spyOn(prisma.jawabanUjian, 'findMany').mockResolvedValue([
+        { 
+          skor_diperoleh: 100, is_benar: true, jawaban_user: 'A',
+          ujian_soal: { soal: { kategori_soal: { kode: 'TIU', id: 1 }, jenis_soal_id: 1 } } 
+        },
+        { 
+          skor_diperoleh: 100, is_benar: true, jawaban_user: 'B',
+          ujian_soal: { soal: { kategori_soal: { kode: 'TWK', id: 2 }, jenis_soal_id: 2 } } 
+        },
+        { 
+          skor_diperoleh: 200, is_benar: null, jawaban_user: 'C',
+          ujian_soal: { soal: { kategori_soal: { kode: 'TKP', id: 3 }, jenis_soal_id: 3 } } 
+        }
+      ] as any);
+
+      jest.spyOn(prisma.kategoriSoal, 'findMany').mockResolvedValue([
+        { id: 1, kode: 'TIU', nama: 'TIU', passing_grade: 80 },
+        { id: 2, kode: 'TWK', nama: 'TWK', passing_grade: 65 },
+        { id: 3, kode: 'TKP', nama: 'TKP', passing_grade: 166 },
+      ] as any);
+
+      jest.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
+        return callback(prisma);
+      });
+      jest.spyOn(prisma.hasilUjian, 'update').mockResolvedValue({} as any);
+      jest.spyOn(prisma.sesiUjian, 'update').mockResolvedValue({} as any);
+      jest.spyOn(prisma.statistikUserKategori, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.statistikUserKategori, 'create').mockResolvedValue({} as any);
+      jest.spyOn(prisma.statistikUserJenis, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(prisma.statistikUserJenis, 'create').mockResolvedValue({} as any);
+
+      await ujianController.selesaiUjian(req, res, next);
+
+      const jsonResponse = (res.json as jest.Mock).mock.calls[0]![0] as any;
+      expect(jsonResponse.data.is_lulus).toBe(true);
+    });
+  });
 });

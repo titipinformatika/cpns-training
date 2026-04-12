@@ -14,3 +14,7 @@ export const simpanJawabanSchema = z.object({
   jawaban: z.enum(['A', 'B', 'C', 'D', 'E']).nullable(),
   is_ragu: z.boolean().default(false),
 });
+
+export const selesaiUjianSchema = z.object({
+  hasil_ujian_id: z.coerce.number().int().positive('ID Hasil Ujian tidak valid'),
+});

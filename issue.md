@@ -1,382 +1,589 @@
-# 🔴 ISSUE: CORE ENGINE - SIMULASI UJIAN (FASE 5 - KRITIS)
-
-> **Prioritas:** 🔴 KRITIS  
-> **Tanggal dibuat:** 2026-04-12  
-> **Status:** Belum Dikerjakan  
-> **Prasyarat:** Fase 1–4 sudah selesai (Auth, Master Data, Backoffice)
-
----
+# 🏁 FASE 6: FINALISASI & KALKULASI SKOR (POST-EXAM)
 
 ## Deskripsi Umum
 
-Ini adalah **jantung utama** aplikasi CPNS Training — yaitu Engine Simulasi Ujian.  
-Fitur ini memungkinkan user memulai ujian, menjawab soal, dan waktu dikelola di sisi server.
+Fase ini menangani **apa yang terjadi ketika ujian berakhir** — baik karena user menekan tombol "Selesai" secara manual, maupun karena timer habis (timeout). Fungsi utamanya adalah:
 
-**⚠️ SANGAT SENSITIF:** Semua logika waktu WAJIB dikelola di backend. Jangan pernah percaya timer dari frontend/browser karena mudah diretas.
+1. Menutup sesi ujian secara resmi.
+2. Menghitung skor akhir per kategori (TIU, TWK, TKP).
+3. Menentukan status kelulusan berdasarkan **passing grade**.
+4. Memperbarui data profiling kompetensi user (statistik per kategori & jenis soal).
+
+> **⚠️ CATATAN PENTING:** Fase ini sangat bergantung pada Fase 5 (Core Engine). Pastikan endpoint `/ujian/mulai`, `/ujian/heartbeat`, dan `/ujian/jawab` sudah berfungsi dengan benar sebelum mulai mengerjakan fase ini.
 
 ---
 
-## Konteks Teknis (Baca Dulu Sebelum Ngoding)
+## Checklist Tugas
 
-### Stack yang Dipakai
-- **Runtime:** Node.js + Express + TypeScript
-- **ORM:** Prisma
-- **Validasi:** Zod (via `validate.middleware.ts`)
-- **Auth:** JWT (middleware sudah ada di `auth.middleware.ts`)
-- **Response format:** Gunakan `successResponse()` dan `errorResponse()` dari `utils/response.ts`
+- [ ] **Task 1**: Endpoint `POST /ujian/selesai` — Akhiri Ujian / Submit
+- [ ] **Task 2**: Logika Kalkulasi Skor Otomatis (`skor_tiu`, `skor_twk`, `skor_tkp`, `skor_total`)
+- [ ] **Task 3**: Logika Penentuan Kelulusan (`is_lulus`) berdasarkan Passing Grade
+- [ ] **Task 4**: Update Profiling — Perbarui `StatistikUserKategori` & `StatistikUserJenis`
+- [ ] **Task 5**: Unit Test untuk seluruh logika di atas
 
-### Pola Kode yang Sudah Ada (Wajib Diikuti)
-Lihat contoh file yang sudah ada sebagai referensi pola:
-- **Controller:** `controllers/admin-paket-ujian.controller.ts`
-- **Routes:** `routes/admin-backoffice.routes.ts`
-- **Validator:** `validators/backoffice.validator.ts`
-- **Middleware Auth:** `middlewares/auth.middleware.ts`
+---
 
-Semua endpoint user WAJIB pakai middleware `authenticateUser` (sudah tersedia).
+## Referensi Codebase (WAJIB BACA DULU)
 
-### Tabel Database yang Terlibat
-Referensi lengkap: baca file `rancangan_database.txt`
+Sebelum mulai coding, **baca dan pahami** file-file berikut:
 
-| Tabel | Kegunaan |
-|---|---|
-| `ujian` | Paket ujian (durasi, tipe, peruntukan) |
-| `ujian_soal` | Mapping soal ke ujian + nomor urut + skor |
-| `ujian_soal_skor_tkp` | Skor khusus TKP per opsi (A=1, B=3, dst.) |
-| `hasil_ujian` | Record utama: skor, status (BERLANGSUNG/SELESAI/TIMEOUT), waktu mulai/selesai |
-| `jawaban_ujian` | Jawaban per soal: opsi dipilih, is_ragu, skor_diperoleh |
-| `sesi_ujian` | Heartbeat engine: sisa waktu, last_heartbeat, status sesi, IP |
+| File | Fungsi | Kenapa Harus Dibaca |
+|------|--------|---------------------|
+| `backend/prisma/schema.prisma` | Skema database | Memahami struktur tabel `HasilUjian`, `JawabanUjian`, `StatistikUserKategori`, `StatistikUserJenis` |
+| `backend/src/controllers/ujian-engine.controller.ts` | Controller Fase 5 | Memahami pola yang sudah ada (fungsi `checkAndHandleTimeout`, pattern response, dll) |
+| `backend/src/validators/ujian-engine.validator.ts` | Validator Fase 5 | Pola validasi Zod yang digunakan |
+| `backend/src/routes/ujian-engine.routes.ts` | Router Fase 5 | Cara mendaftarkan endpoint baru |
+| `backend/src/config/constants.ts` | Konstanta global | Threshold tingkat penguasaan (`PENGUASAAN_RENDAH`, `PENGUASAAN_SEDANG`, `PENGUASAAN_TINGGI`) |
+| `backend/src/utils/response.ts` | Helper response | Fungsi `successResponse()` dan `errorResponse()` |
+| `backend/src/__tests__/ujian-engine.test.ts` | Unit test Fase 5 | Pola penulisan unit test dan cara mock Prisma |
 
-### Konstanta yang Sudah Disiapkan (di `config/constants.ts`)
+---
+
+## TASK 1: Endpoint `POST /ujian/selesai`
+
+### Tujuan
+User menekan tombol "Selesai Ujian" di frontend. Endpoint ini akan menutup sesi, menghitung skor, dan mengembalikan laporan akhir.
+
+### Request Body (Validasi dengan Zod)
+
 ```typescript
-HEARTBEAT_TIMEOUT_SECONDS = 120   // Batas toleransi timeout heartbeat
-HEARTBEAT_INTERVAL_SECONDS = 30   // Interval heartbeat dari frontend
+// Tambahkan di: backend/src/validators/ujian-engine.validator.ts
+export const selesaiUjianSchema = z.object({
+  body: z.object({
+    hasil_ujian_id: z.number().int().positive(),
+  }),
+});
 ```
 
-### Enum yang Relevan
+### Alur Logika (Step-by-Step)
+
 ```
-StatusHasilUjian: BERLANGSUNG | SELESAI | TIMEOUT
-StatusSesi: AKTIF | TERPUTUS | DILANJUTKAN | SELESAI
-JawabanOpsi: A | B | C | D | E
+User klik "Selesai"
+    │
+    ▼
+[1] Validasi: Apakah hasil_ujian_id valid & milik user ini?
+    │
+    ▼
+[2] Validasi: Apakah status masih "BERLANGSUNG"?
+    │   - Jika sudah "SELESAI" atau "TIMEOUT" → tolak (400)
+    │
+    ▼
+[3] Hitung waktu pengerjaan:
+    │   waktu_selesai = new Date()
+    │   durasi_actual = waktu_selesai - waktu_mulai (dalam detik)
+    │
+    ▼
+[4] Ambil SEMUA jawaban user untuk ujian ini:
+    │   SELECT * FROM jawaban_ujian WHERE hasil_ujian_id = ?
+    │   JOIN ujian_soal → soal → kategori_soal (untuk tahu TIU/TWK/TKP)
+    │
+    ▼
+[5] KALKULASI SKOR (lihat Task 2 untuk detail)
+    │   - Hitung skor_tiu, skor_twk, skor_tkp
+    │   - Hitung skor_total = skor_tiu + skor_twk + skor_tkp
+    │   - Hitung jumlah_benar, jumlah_salah
+    │
+    ▼
+[6] CEK KELULUSAN (lihat Task 3 untuk detail)
+    │   - Bandingkan setiap skor kategori dengan passing_grade-nya
+    │
+    ▼
+[7] UPDATE DATABASE (dalam satu TRANSACTION):
+    │   a. Update tabel `hasil_ujian` → skor, status, waktu_selesai, is_lulus
+    │   b. Update tabel `sesi_ujian` → status_sesi = 'SELESAI', sisa_waktu = 0
+    │   c. Update tabel `statistik_user_kategori` (Task 4)
+    │   d. Update tabel `statistik_user_jenis` (Task 4)
+    │
+    ▼
+[8] Return response berisi laporan skor akhir
 ```
 
----
+### Contoh Response Sukses (HTTP 200)
 
-## File yang Harus Dibuat
-
-| File | Path |
-|---|---|
-| Controller | `src/controllers/ujian-engine.controller.ts` |
-| Routes | `src/routes/ujian-engine.routes.ts` |
-| Validator | `src/validators/ujian-engine.validator.ts` |
-| Register route | Update `src/routes/index.ts` → tambahkan route `/ujian` |
-
----
-
-## Checklist Task
-
-### ✅ Task 1: Endpoint `POST /ujian/mulai`
-
-**Tujuan:** User memulai ujian. Server meng-generate sesi ujian baru.
-
-**Request Body:**
-```json
-{
-  "ujian_id": 5
-}
-```
-
-**Logika yang harus dilakukan (urut):**
-1. Validasi `ujian_id` ada dan `is_active = true`.
-2. Cek apakah user ini sudah punya `hasil_ujian` dengan `status = BERLANGSUNG` untuk ujian yang sama. **Jika sudah ada → tolak** (respon error: "Anda masih memiliki ujian yang sedang berlangsung").
-3. Hitung `percobaan_ke` = jumlah `hasil_ujian` user untuk `ujian_id` ini + 1.
-4. Ambil semua `ujian_soal` yang terhubung dengan ujian ini, hitung `total_soal`.
-5. Buat record di tabel `hasil_ujian`:
-   ```
-   user_id        = dari req.user.id
-   ujian_id       = dari body
-   percobaan_ke   = hasil hitungan step 3
-   total_soal     = hasil hitungan step 4
-   jumlah_dijawab = 0
-   jumlah_benar   = 0
-   jumlah_salah   = 0
-   jumlah_kosong  = total_soal
-   skor_tiu/twk/tkp/total = 0
-   status         = BERLANGSUNG
-   waktu_mulai    = new Date()  ← waktu server!
-   durasi_detik   = ujian.durasi_menit * 60
-   ```
-6. Buat record di tabel `sesi_ujian`:
-   ```
-   hasil_ujian_id     = id dari step 5
-   user_id            = req.user.id
-   ujian_id           = dari body
-   nomor_soal_terakhir = 1
-   sisa_waktu_detik   = ujian.durasi_menit * 60
-   total_terjawab     = 0
-   total_belum_jawab  = total_soal
-   total_ragu         = 0
-   status_sesi        = AKTIF
-   last_heartbeat     = new Date()
-   ip_address         = req.ip
-   user_agent         = req.headers['user-agent']
-   jumlah_resume      = 0
-   ```
-7. Ambil daftar soal (tanpa `jawaban_benar` dan `pembahasan`) untuk dikirim ke frontend.
-
-**Gunakan `prisma.$transaction()`** untuk memastikan step 5-6 atomic.
-
-**Response Sukses (201):**
 ```json
 {
   "success": true,
-  "message": "Ujian berhasil dimulai",
+  "message": "Ujian berhasil diselesaikan",
   "data": {
-    "hasil_ujian_id": 123,
-    "sesi_ujian_id": 456,
-    "sisa_waktu_detik": 6000,
+    "hasil_ujian_id": 100,
+    "status": "SELESAI",
+    "waktu_mulai": "2026-04-12T09:00:00.000Z",
+    "waktu_selesai": "2026-04-12T10:30:00.000Z",
+    "durasi_pengerjaan_detik": 5400,
     "total_soal": 100,
-    "soal_list": [
-      {
-        "ujian_soal_id": 1,
-        "nomor_urut": 1,
-        "pertanyaan": "...",
-        "pertanyaan_gambar": null,
-        "opsi_a": "...",
-        "opsi_b": "...",
-        "opsi_c": "...",
-        "opsi_d": "...",
-        "opsi_e": "...",
-        "opsi_a_gambar": null,
-        "kategori_soal": "TIU"
-      }
+    "jumlah_dijawab": 95,
+    "jumlah_benar": 78,
+    "jumlah_salah": 17,
+    "jumlah_kosong": 5,
+    "skor_tiu": 120,
+    "skor_twk": 130,
+    "skor_tkp": 165,
+    "skor_total": 415,
+    "is_lulus": true,
+    "detail_kategori": [
+      { "kode": "TIU", "nama": "Tes Intelegensi Umum", "skor": 120, "passing_grade": 80, "lulus": true },
+      { "kode": "TWK", "nama": "Tes Wawasan Kebangsaan", "skor": 130, "passing_grade": 65, "lulus": true },
+      { "kode": "TKP", "nama": "Tes Karakteristik Pribadi", "skor": 165, "passing_grade": 166, "lulus": false }
     ]
   }
 }
 ```
 
-> **⚠️ PENTING:** Jangan kirim field `jawaban_benar`, `pembahasan`, dan `pembahasan_gambar` ke response! Ini bisa dieksploitasi user.
+### Validasi Error yang Harus Ditangani
+
+| Kondisi | HTTP Code | Pesan |
+|---------|-----------|-------|
+| `hasil_ujian_id` tidak ditemukan atau bukan milik user | 404 | "Data ujian tidak ditemukan" |
+| Status sudah `SELESAI` atau `TIMEOUT` | 400 | "Ujian sudah berakhir sebelumnya" |
+
+### Dimana Menambahkan Kode
+
+| Apa | File |
+|-----|------|
+| Validator | `backend/src/validators/ujian-engine.validator.ts` |
+| Controller | `backend/src/controllers/ujian-engine.controller.ts` (tambahkan fungsi `selesaiUjian`) |
+| Route | `backend/src/routes/ujian-engine.routes.ts` (tambahkan `POST /selesai`) |
 
 ---
 
-### ✅ Task 2: Endpoint `POST /ujian/heartbeat`
+## TASK 2: Logika Kalkulasi Skor Otomatis
 
-**Tujuan:** Frontend mengirim "saya masih aktif" setiap 30 detik. Server menghitung sisa waktu yang sebenarnya.
+### Tujuan
+Menghitung total skor per kategori soal (TIU, TWK, TKP) dari semua jawaban yang sudah disimpan di tabel `jawaban_ujian`.
 
-**Request Body:**
-```json
-{
-  "hasil_ujian_id": 123
-}
-```
+### Cara Kerja
 
-**Logika yang harus dilakukan:**
-1. Cari `sesi_ujian` berdasarkan `hasil_ujian_id` dan pastikan `user_id == req.user.id`.
-2. Cari `hasil_ujian` terkait. Pastikan `status = BERLANGSUNG`, jika tidak → tolak.
-3. **Hitung sisa waktu dari sisi server:**
-   ```
-   waktu_berlalu_detik = (Date.now() - hasil_ujian.waktu_mulai) / 1000
-   sisa_waktu_detik = hasil_ujian.durasi_detik - waktu_berlalu_detik
-   ```
-4. **Jika `sisa_waktu_detik <= 0`:** Waktu sudah habis!
-   - Update `hasil_ujian.status` → `TIMEOUT`
-   - Update `hasil_ujian.waktu_selesai` → `new Date()`
-   - Update `sesi_ujian.status_sesi` → `SELESAI`
-   - Update `sesi_ujian.sisa_waktu_detik` → `0`
-   - Return response dengan status "TIMEOUT"
-5. **Jika masih ada waktu:**
-   - Update `sesi_ujian.last_heartbeat` → `new Date()`
-   - Update `sesi_ujian.sisa_waktu_detik` → hasil hitungan step 3
-   - Update `sesi_ujian.ip_address` dan `user_agent` (bisa berubah jika pindah device)
+Skor sudah dihitung per-jawaban saat user menjawab (di endpoint `/ujian/jawab` Fase 5). Jadi di fase ini, kita **hanya perlu menjumlahkan** (`SUM`) skor yang sudah ada.
 
-**Response Sukses (200):**
-```json
-{
-  "success": true,
-  "message": "Heartbeat OK",
-  "data": {
-    "sisa_waktu_detik": 5970,
-    "status": "AKTIF"
-  }
-}
-```
-
-**Response Jika Waktu Habis (200):**
-```json
-{
-  "success": true,
-  "message": "Waktu ujian telah habis",
-  "data": {
-    "sisa_waktu_detik": 0,
-    "status": "TIMEOUT"
-  }
-}
-```
-
----
-
-### ✅ Task 3: Endpoint `POST /ujian/jawab`
-
-**Tujuan:** Menyimpan jawaban user untuk 1 soal. Bisa dipanggil berkali-kali (update jawaban).
-
-**Request Body:**
-```json
-{
-  "hasil_ujian_id": 123,
-  "ujian_soal_id": 45,
-  "jawaban": "B",
-  "is_ragu": false
-}
-```
-
-> **Catatan:** `jawaban` boleh `null` (artinya user menghapus jawaban / mengosongkan).
-
-**Logika yang harus dilakukan:**
-1. Validasi `hasil_ujian_id` milik `req.user.id` dan `status = BERLANGSUNG`.
-2. **Cek waktu masih valid** (hitung seperti di heartbeat). Jika waktu habis → tolak, return error "Waktu ujian telah habis".
-3. Validasi `ujian_soal_id` memang terdaftar di ujian ini (via tabel `ujian_soal` dimana `ujian_id` sama).
-4. Cek apakah sudah ada record di `jawaban_ujian` untuk kombinasi `hasil_ujian_id + ujian_soal_id`:
-   - **Jika belum ada → `create`**
-   - **Jika sudah ada → `update`**
-5. Tentukan `is_benar` dan `skor_diperoleh`:
-   - **Jika `jawaban = null`** → `is_benar = null`, `skor_diperoleh = 0`
-   - **Jika soal bertipe TKP** (cek via `ujian_soal.soal.kategori_soal.kode == 'TKP'`):
-     - Ambil `ujian_soal_skor_tkp`, lalu `skor_diperoleh = skor_tkp['skor_' + jawaban.toLowerCase()]`
-     - TKP tidak ada konsep benar/salah, set `is_benar = null`
-   - **Jika soal bukan TKP** (TIU/TWK):
-     - `is_benar = (jawaban == soal.jawaban_benar)`
-     - `skor_diperoleh = is_benar ? ujian_soal.skor : 0`
-6. Simpan data jawaban:
-   ```
-   jawaban_user     = jawaban (atau null)
-   is_benar         = hasil step 5
-   skor_diperoleh   = hasil step 5
-   is_ragu          = dari body
-   waktu_jawab_detik = hitung berapa detik sejak ujian dimulai
-   ```
-7. **Update counter di `sesi_ujian`** (hitung ulang dari database untuk akurasi):
-   ```sql
-   total_terjawab   = COUNT jawaban_ujian WHERE jawaban_user IS NOT NULL
-   total_belum_jawab = total_soal - total_terjawab
-   total_ragu       = COUNT jawaban_ujian WHERE is_ragu = true
-   ```
-8. **Update counter di `hasil_ujian`** juga:
-   ```
-   jumlah_dijawab = total_terjawab
-   jumlah_kosong  = total_belum_jawab
-   ```
-
-**Response Sukses (200):**
-```json
-{
-  "success": true,
-  "message": "Jawaban berhasil disimpan",
-  "data": {
-    "ujian_soal_id": 45,
-    "jawaban_user": "B",
-    "is_ragu": false,
-    "total_terjawab": 15,
-    "total_belum_jawab": 85,
-    "total_ragu": 3
-  }
-}
-```
-
----
-
-### ✅ Task 4: Logika Pemutusan Ujian Otomatis (Heartbeat Timeout)
-
-**Tujuan:** Jika user menghilang (browser crash, internet putus, dll), server harus otomatis menghentikan ujian setelah batas toleransi.
-
-**Cara implementasi** — Tidak perlu membuat cron job terpisah. Cukup **pasang pengecekan ini di 3 tempat:**
-
-1. **Di endpoint heartbeat** (Task 2 step 4) — sudah ter-cover.
-2. **Di endpoint jawab** (Task 3 step 2) — sudah ter-cover.
-3. **Di endpoint mulai ujian** (Task 1 step 2) — saat cek apakah ada ujian berlangsung, cek juga apakah ujian sebelumnya sudah timeout berdasarkan waktu:
-   ```
-   // Saat menemukan hasil_ujian dengan status BERLANGSUNG:
-   waktu_berlalu = (Date.now() - hasil_ujian.waktu_mulai) / 1000
-   if (waktu_berlalu > hasil_ujian.durasi_detik + HEARTBEAT_TIMEOUT_SECONDS) {
-     // Tandai sebagai TIMEOUT, lalu lanjutkan proses mulai ujian baru
-   }
-   ```
-
-**Konstanta yang dipakai:**  
-`HEARTBEAT_TIMEOUT_SECONDS = 120` (dari `config/constants.ts`)
-
-Artinya: Jika waktu berlalu sudah melebihi `durasi_detik + 120 detik`, maka ujian itu dianggap TIMEOUT.
-
----
-
-## Validasi Zod yang Harus Dibuat
-
-Buat file `src/validators/ujian-engine.validator.ts`:
+### Pseudocode
 
 ```typescript
-// Contoh skema (sesuaikan dengan pola di backoffice.validator.ts):
+// 1. Ambil semua jawaban beserta info kategori soalnya
+const semuaJawaban = await tx.jawabanUjian.findMany({
+  where: { hasil_ujian_id },
+  include: {
+    ujian_soal: {
+      include: {
+        soal: {
+          include: { kategori_soal: true }  // Untuk tahu kode: TIU / TWK / TKP
+        }
+      }
+    }
+  }
+});
 
-mulaiUjianSchema = {
-  body: z.object({
-    ujian_id: z.number().int().positive(),
-  })
+// 2. Kelompokkan & jumlahkan skor per kategori
+const skorPerKategori: Record<string, number> = {};
+// Contoh hasil: { "TIU": 120, "TWK": 130, "TKP": 165 }
+
+let jumlahBenar = 0;
+let jumlahSalah = 0;
+
+for (const jawaban of semuaJawaban) {
+  const kodeKategori = jawaban.ujian_soal.soal.kategori_soal.kode;
+
+  // Inisialisasi jika belum ada
+  if (!skorPerKategori[kodeKategori]) {
+    skorPerKategori[kodeKategori] = 0;
+  }
+
+  // Akumulasi skor
+  skorPerKategori[kodeKategori] += jawaban.skor_diperoleh;
+
+  // Hitung benar/salah (hanya untuk non-TKP, karena TKP tidak ada benar/salah)
+  if (jawaban.is_benar === true) jumlahBenar++;
+  if (jawaban.is_benar === false) jumlahSalah++;
 }
 
-heartbeatSchema = {
-  body: z.object({
-    hasil_ujian_id: z.number().int().positive(),
-  })
-}
-
-simpanJawabanSchema = {
-  body: z.object({
-    hasil_ujian_id: z.number().int().positive(),
-    ujian_soal_id: z.number().int().positive(),
-    jawaban: z.enum(['A', 'B', 'C', 'D', 'E']).nullable(),
-    is_ragu: z.boolean().default(false),
-  })
-}
+// 3. Extract skor individual
+const skorTiu = skorPerKategori['TIU'] || 0;
+const skorTwk = skorPerKategori['TWK'] || 0;
+const skorTkp = skorPerKategori['TKP'] || 0;
+const skorTotal = skorTiu + skorTwk + skorTkp;
 ```
+
+### ⚠️ Catatan Penting tentang TKP
+- Soal TKP **tidak memiliki jawaban benar/salah** (`is_benar` selalu `null`).
+- Skor TKP sudah dihitung per jawaban di Fase 5 menggunakan mapping `ujian_soal_skor_tkp` (nilai 1-5 per opsi).
+- Jadi di sini cukup di-SUM saja, **jangan hitung ulang**.
 
 ---
 
-## Routing yang Harus Dibuat
+## TASK 3: Logika Penentuan Kelulusan
 
-Buat file `src/routes/ujian-engine.routes.ts`:
+### Tujuan
+Menentukan apakah user **lulus** berdasarkan passing grade setiap kategori soal.
 
-```
-POST   /ujian/mulai       → authenticateUser → mulaiUjian
-POST   /ujian/heartbeat   → authenticateUser → heartbeat
-POST   /ujian/jawab        → authenticateUser → simpanJawaban
-```
+### Aturan Kelulusan CPNS
+User dinyatakan **LULUS** jika dan hanya jika **SEMUA kategori** memenuhi passing grade masing-masing. Jika **satu saja** di bawah passing grade, maka **TIDAK LULUS**.
 
-Lalu register di `src/routes/index.ts`:
+### Pseudocode
+
 ```typescript
-import ujianEngineRoutes from './ujian-engine.routes.js';
-router.use('/ujian', ujianEngineRoutes);
+// 1. Ambil data passing grade dari tabel kategori_soal
+const semuaKategori = await tx.kategoriSoal.findMany();
+// Contoh isi: [
+//   { kode: "TIU", passing_grade: 80 },
+//   { kode: "TWK", passing_grade: 65 },
+//   { kode: "TKP", passing_grade: 166 }
+// ]
+
+// 2. Cek setiap kategori
+let isLulus = true;
+const detailKategori = [];
+
+for (const kategori of semuaKategori) {
+  const skorUser = skorPerKategori[kategori.kode] || 0;
+  const lulusKategori = skorUser >= kategori.passing_grade;
+
+  if (!lulusKategori) {
+    isLulus = false;  // Satu saja tidak lulus → keseluruhan tidak lulus
+  }
+
+  detailKategori.push({
+    kode: kategori.kode,
+    nama: kategori.nama,
+    skor: skorUser,
+    passing_grade: kategori.passing_grade,
+    lulus: lulusKategori,
+  });
+}
+
+// 3. isLulus = true hanya jika SEMUA kategori lulus
+```
+
+### Dimana `passing_grade` Disimpan?
+Di tabel `kategori_soal`, kolom `passing_grade` (tipe `Float`, default `0`).
+Admin harus sudah mengisi nilai ini terlebih dahulu lewat fitur CRUD Kategori Soal (Fase 3).
+
+---
+
+## TASK 4: Update Profiling Statistik
+
+### Tujuan
+Setelah ujian selesai, perbarui data statistik kompetensi user agar fitur "Profiling" dan "Analisis Kelemahan" bisa bekerja.
+
+### Tabel yang Diupdate
+
+#### A. `statistik_user_kategori` (per TIU / TWK / TKP)
+
+Untuk **setiap kategori soal** yang ada di ujian tersebut, lakukan `upsert`:
+
+```typescript
+// Untuk setiap kategori (TIU, TWK, TKP):
+for (const kategori of semuaKategori) {
+  const kode = kategori.kode;
+  const skorKategori = skorPerKategori[kode] || 0;
+
+  // Hitung soal yang dijawab untuk kategori ini
+  const jawabanKategori = semuaJawaban.filter(
+    j => j.ujian_soal.soal.kategori_soal.kode === kode
+  );
+  const totalDijawab = jawabanKategori.filter(j => j.jawaban_user !== null).length;
+  const totalBenarKat = jawabanKategori.filter(j => j.is_benar === true).length;
+  const totalSalahKat = jawabanKategori.filter(j => j.is_benar === false).length;
+
+  await tx.statistikUserKategori.upsert({
+    where: {
+      user_id_kategori_soal_id: {
+        user_id: userId,
+        kategori_soal_id: kategori.id,
+      }
+    },
+    create: {
+      user_id: userId,
+      kategori_soal_id: kategori.id,
+      total_soal_dijawab: totalDijawab,
+      total_benar: totalBenarKat,
+      total_salah: totalSalahKat,
+      total_skor: skorKategori,
+      skor_tertinggi: skorKategori,
+      skor_terendah: skorKategori,
+      skor_rata_rata: skorKategori,
+      persentase_benar: totalDijawab > 0
+        ? (totalBenarKat / totalDijawab) * 100
+        : 0,
+      total_ujian: 1,
+    },
+    update: {
+      total_soal_dijawab: { increment: totalDijawab },
+      total_benar: { increment: totalBenarKat },
+      total_salah: { increment: totalSalahKat },
+      total_skor: { increment: skorKategori },
+      total_ujian: { increment: 1 },
+      // skor_tertinggi → update hanya jika skorKategori > skor_tertinggi saat ini
+      // skor_terendah  → update hanya jika skorKategori < skor_terendah saat ini
+      // skor_rata_rata → hitung ulang: total_skor / total_ujian
+      // persentase_benar → hitung ulang: (total_benar / total_soal_dijawab) * 100
+    },
+  });
+}
+```
+
+> **⚠️ PERHATIAN untuk `update`:** Kolom `skor_tertinggi`, `skor_terendah`, `skor_rata_rata`, dan `persentase_benar` tidak bisa pakai `increment`. Kamu harus **baca dulu data yang ada**, lalu hitung manual sebelum update. Contoh:
+
+```typescript
+// Cara aman untuk update skor_tertinggi & skor_terendah:
+const existing = await tx.statistikUserKategori.findUnique({
+  where: { user_id_kategori_soal_id: { user_id: userId, kategori_soal_id: kategori.id } }
+});
+
+if (existing) {
+  const newTotalSkor = existing.total_skor + skorKategori;
+  const newTotalUjian = existing.total_ujian + 1;
+  const newTotalDijawab = existing.total_soal_dijawab + totalDijawab;
+  const newTotalBenar = existing.total_benar + totalBenarKat;
+
+  await tx.statistikUserKategori.update({
+    where: { id: existing.id },
+    data: {
+      total_soal_dijawab: newTotalDijawab,
+      total_benar: newTotalBenar,
+      total_salah: existing.total_salah + totalSalahKat,
+      total_skor: newTotalSkor,
+      total_ujian: newTotalUjian,
+      skor_tertinggi: Math.max(existing.skor_tertinggi, skorKategori),
+      skor_terendah: existing.skor_terendah === 0
+        ? skorKategori
+        : Math.min(existing.skor_terendah, skorKategori),
+      skor_rata_rata: newTotalSkor / newTotalUjian,
+      persentase_benar: newTotalDijawab > 0
+        ? (newTotalBenar / newTotalDijawab) * 100
+        : 0,
+    },
+  });
+} else {
+  // create baru (first time)
+  await tx.statistikUserKategori.create({ ... });
+}
+```
+
+#### B. `statistik_user_jenis` (per Jenis Soal: Verbal, Numerik, Analogi, dll)
+
+Logikanya mirip dengan kategori, tapi dikelompokkan per `jenis_soal_id`:
+
+```typescript
+// Kelompokkan jawaban per jenis_soal_id
+const jawabanPerJenis: Record<number, typeof semuaJawaban> = {};
+
+for (const jawaban of semuaJawaban) {
+  const jenisId = jawaban.ujian_soal.soal.jenis_soal_id;
+  if (!jawabanPerJenis[jenisId]) jawabanPerJenis[jenisId] = [];
+  jawabanPerJenis[jenisId].push(jawaban);
+}
+
+// Untuk setiap jenis soal, upsert statistik
+for (const [jenisIdStr, jawabanList] of Object.entries(jawabanPerJenis)) {
+  const jenisId = Number(jenisIdStr);
+  const totalDijawab = jawabanList.filter(j => j.jawaban_user !== null).length;
+  const totalBenar = jawabanList.filter(j => j.is_benar === true).length;
+  const totalSalah = jawabanList.filter(j => j.is_benar === false).length;
+  const totalSkor = jawabanList.reduce((sum, j) => sum + j.skor_diperoleh, 0);
+  const persentaseBenar = totalDijawab > 0 ? (totalBenar / totalDijawab) * 100 : 0;
+
+  // Tentukan tingkat penguasaan berdasarkan persentase
+  // Lihat constants.ts untuk threshold:
+  //   PENGUASAAN_RENDAH  = 40%
+  //   PENGUASAAN_SEDANG  = 65%
+  //   PENGUASAAN_TINGGI  = 85%
+  let tingkatPenguasaan: 'BELUM' | 'RENDAH' | 'SEDANG' | 'TINGGI' | 'MAHIR';
+  if (totalDijawab === 0)       tingkatPenguasaan = 'BELUM';
+  else if (persentaseBenar < 40)  tingkatPenguasaan = 'RENDAH';
+  else if (persentaseBenar < 65)  tingkatPenguasaan = 'SEDANG';
+  else if (persentaseBenar < 85)  tingkatPenguasaan = 'TINGGI';
+  else                            tingkatPenguasaan = 'MAHIR';
+
+  await tx.statistikUserJenis.upsert({
+    where: {
+      user_id_jenis_soal_id: {
+        user_id: userId,
+        jenis_soal_id: jenisId,
+      }
+    },
+    create: {
+      user_id: userId,
+      jenis_soal_id: jenisId,
+      total_soal_dijawab: totalDijawab,
+      total_benar: totalBenar,
+      total_salah: totalSalah,
+      skor_rata_rata: totalSkor,
+      persentase_benar: persentaseBenar,
+      tingkat_penguasaan: tingkatPenguasaan,
+    },
+    update: {
+      // Sama seperti kategori: baca dulu, hitung ulang, baru update
+      // Kecuali tingkat_penguasaan → hitung ulang dari persentase_benar terbaru
+    },
+  });
+}
+```
+
+> **⚠️ CATATAN tentang TKP & Statistik Jenis:**
+> Untuk soal TKP, field `is_benar` selalu `null`. Jadi saat menghitung `total_benar` dan `total_salah` untuk jenis soal yang termasuk kategori TKP, **jangan hitung** yang `is_benar === null`. Cukup hitung `total_soal_dijawab` dan `skor_rata_rata` saja.
+
+---
+
+## TASK 5: Unit Test
+
+### File Target
+`backend/src/__tests__/ujian-engine.test.ts` (tambahkan `describe` baru)
+
+### Test Cases yang WAJIB Ada
+
+```typescript
+describe('selesaiUjian()', () => {
+  it('harus menghitung skor per kategori dengan benar', async () => {
+    // Setup:
+    //   - Mock 3 jawaban: 1 TIU (benar, skor 5), 1 TWK (salah, skor 0), 1 TKP (skor 4)
+    //   - Mock kategori_soal dengan passing_grade
+    // Assert:
+    //   - skor_tiu = 5
+    //   - skor_twk = 0
+    //   - skor_tkp = 4
+    //   - skor_total = 9
+  });
+
+  it('harus menentukan is_lulus = false jika satu kategori di bawah passing grade', async () => {
+    // Setup:
+    //   - Mock skor_tiu = 120 (passing_grade TIU = 80) ✅
+    //   - Mock skor_twk = 50  (passing_grade TWK = 65) ❌
+    //   - Mock skor_tkp = 170 (passing_grade TKP = 166) ✅
+    // Assert:
+    //   - is_lulus = false (karena TWK tidak lulus)
+  });
+
+  it('harus menentukan is_lulus = true jika semua kategori memenuhi passing grade', async () => {
+    // Setup & Assert sebaliknya dari test di atas
+  });
+
+  it('harus menolak jika ujian sudah selesai sebelumnya', async () => {
+    // Setup: Mock hasilUjian dengan status = 'SELESAI'
+    // Assert: HTTP 400
+  });
+
+  it('harus mengupdate statistik_user_kategori setelah selesai', async () => {
+    // Assert: prisma.statistikUserKategori.upsert dipanggil
+  });
+
+  it('harus mengupdate statistik_user_jenis setelah selesai', async () => {
+    // Assert: prisma.statistikUserJenis.upsert dipanggil
+  });
+});
+```
+
+### Pola Mock yang Digunakan (PENTING!)
+
+Gunakan pola yang **sudah terbukti bersih dari error TypeScript** di Fase 5:
+
+```typescript
+// ✅ BENAR - Pola yang sudah teruji (tanpa error TypeScript)
+jest.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
+  return callback(prisma);  // Pass global prisma, bukan objek custom
+});
+
+// Lalu spy individual methods:
+jest.spyOn(prisma.hasilUjian, 'update').mockResolvedValue({ ... } as any);
+jest.spyOn(prisma.statistikUserKategori, 'upsert').mockResolvedValue({ ... } as any);
+```
+
+```typescript
+// ❌ SALAH - Jangan pakai pola ini (menyebabkan error TypeScript "never")
+jest.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
+  return callback({
+    hasilUjian: { update: jest.fn().mockResolvedValue({}) },  // ← Error TS2345!
+  });
+});
 ```
 
 ---
 
-## Unit Test yang Diharapkan
+## Diagram Alur Keseluruhan
 
-Buat file `src/__tests__/ujian-engine.test.ts`. Minimal harus cover:
-
-1. **Mulai ujian:** sukses membuat `hasil_ujian` + `sesi_ujian`
-2. **Mulai ujian:** gagal jika sudah ada ujian berlangsung
-3. **Mulai ujian:** sukses jika ujian sebelumnya sudah timeout (auto-terminate dulu)
-4. **Heartbeat:** sukses update `sisa_waktu_detik` + `last_heartbeat`
-5. **Heartbeat:** mengembalikan TIMEOUT jika waktu sudah habis
-6. **Simpan jawaban:** sukses simpan jawaban baru (create)
-7. **Simpan jawaban:** sukses update jawaban yang sudah ada
-8. **Simpan jawaban:** scoring TKP menghitung skor dari tabel `ujian_soal_skor_tkp`
-9. **Simpan jawaban:** scoring TIU/TWK menghitung skor dari `jawaban_benar`
-10. **Simpan jawaban:** ditolak jika waktu sudah habis
-11. **Counter:** `total_terjawab`, `total_ragu`, `total_belum_jawab` terupdate dengan benar
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     USER KLIK "SELESAI"                          │
+│                    atau TIMER HABIS                               │
+└──────────────────────┬───────────────────────────────────────────┘
+                       │
+                       ▼
+              ┌────────────────────┐
+              │  POST /ujian/selesai│
+              └────────┬───────────┘
+                       │
+          ┌────────────┴────────────┐
+          │    VALIDASI & GUARD     │
+          │  • Milik user?          │
+          │  • Status BERLANGSUNG?  │
+          └────────────┬────────────┘
+                       │
+          ┌────────────┴────────────┐
+          │   KALKULASI SKOR        │
+          │  • SUM skor_diperoleh   │
+          │    per kategori         │
+          │  • Hitung benar/salah   │
+          └────────────┬────────────┘
+                       │
+          ┌────────────┴────────────┐
+          │   CEK KELULUSAN         │
+          │  • Setiap kategori >=   │
+          │    passing_grade?       │
+          │  • is_lulus = ALL pass  │
+          └────────────┬────────────┘
+                       │
+     ┌─────────────────┼─────────────────┐
+     │                 │                 │
+     ▼                 ▼                 ▼
+┌─────────┐    ┌─────────────┐   ┌──────────────┐
+│ UPDATE   │    │ UPDATE      │   │ UPDATE       │
+│ hasil_   │    │ sesi_ujian  │   │ statistik_*  │
+│ ujian    │    │ status=     │   │ upsert per   │
+│ skor,    │    │ SELESAI     │   │ kategori &   │
+│ status,  │    │             │   │ jenis soal   │
+│ is_lulus │    │             │   │              │
+└─────────┘    └─────────────┘   └──────────────┘
+     │                 │                 │
+     └─────────────────┼─────────────────┘
+                       │
+                       ▼
+              ┌────────────────────┐
+              │  RETURN LAPORAN    │
+              │  SKOR AKHIR        │
+              └────────────────────┘
+```
 
 ---
 
-## Catatan Keamanan
+## Tips Teknis untuk Implementasinya
 
-1. **Selalu validasi ownership** — Setiap request WAJIB cek `user_id == req.user.id`. User tidak boleh bisa mengakses sesi ujian orang lain.
-2. **Jangan percaya waktu dari frontend** — Sisa waktu selalu dihitung dari `waktu_mulai` di server.
-3. **Jangan kirim jawaban benar ke response** — Field `jawaban_benar`, `pembahasan`, `pembahasan_gambar` TIDAK BOLEH ada di response soal.
-4. **Gunakan `prisma.$transaction()`** untuk operasi yang melibatkan lebih dari 1 tabel.
+### 1. Gunakan `prisma.$transaction()`
+Seluruh operasi di Task 1 step [7] HARUS dibungkus dalam satu transaction. Jika salah satu gagal, rollback semua.
+
+### 2. Jangan Hitung Ulang Skor Per-Jawaban
+Skor sudah dihitung di Fase 5 (saat user menjawab). Di sini cukup `SUM(skor_diperoleh)` per kategori.
+
+### 3. Handle Edge Case: Ujian Tanpa Jawaban
+Jika user submit tanpa menjawab satu soal pun:
+- `skor_tiu`, `skor_twk`, `skor_tkp` = 0
+- `jumlah_benar` = 0, `jumlah_salah` = 0
+- `is_lulus` = false
+- Statistik tetap diupdate (increment `total_ujian`)
+
+### 4. Handle Edge Case: Timeout dari Heartbeat
+Jika ujian sudah di-timeout oleh fungsi `checkAndHandleTimeout()` dari Fase 5, endpoint ini harus mengembalikan response 400 dengan pesan "Ujian sudah berakhir sebelumnya". Jangan proses ulang.
+
+### 5. Skor TKP Minimum
+Pada CPNS asli, skor TKP minimum per soal adalah 1 (bukan 0). Sistem kita sudah menangani ini di Fase 5 melalui mapping `skor_tkp`. Pastikan tidak ada soal TKP yang menghasilkan skor 0.
+
+---
+
+## Definisi "Selesai" untuk Issue Ini
+
+Issue ini dianggap **DONE** jika:
+
+1. ✅ Endpoint `POST /ujian/selesai` berfungsi dan mengembalikan laporan skor lengkap.
+2. ✅ Skor per kategori (TIU, TWK, TKP) dihitung dengan benar.
+3. ✅ Status kelulusan ditentukan berdasarkan passing grade dari tabel `kategori_soal`.
+4. ✅ Tabel `statistik_user_kategori` ter-update setiap ujian selesai.
+5. ✅ Tabel `statistik_user_jenis` ter-update setiap ujian selesai.
+6. ✅ Semua unit test PASSED.
+7. ✅ `tsc --noEmit` menghasilkan **0 error** (tidak ada garis merah).
