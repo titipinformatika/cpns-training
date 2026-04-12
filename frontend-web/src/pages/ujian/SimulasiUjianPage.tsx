@@ -12,7 +12,8 @@ import {
   Loader2,
   AlertCircle,
   Menu,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -31,6 +32,7 @@ export default function SimulasiUjianPage() {
   const [sisaWaktu, setSisaWaktu] = useState(0);
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);
   const [showNav, setShowNav] = useState(false); // Mobile navigation grid
+  const [showSubmitModal, setShowSubmitModal] = useState(false); // Custom confirmation modal
   
   // Refs for tracking changes
   const lastSavedAnswer = useRef<Map<number, string>>(new Map());
@@ -119,7 +121,7 @@ export default function SimulasiUjianPage() {
 
   // Auto-save logic
   const saveAnswer = useCallback(async (index: number) => {
-    if (!examData) return;
+    if (!examData || soalList.length === 0) return;
     const soal = soalList[index];
     const currentAnswer = answers.get(soal.ujian_soal_id) || null;
     const lastSaved = lastSavedAnswer.current.get(soal.ujian_soal_id) || null;
@@ -175,7 +177,9 @@ export default function SimulasiUjianPage() {
     
     setAnswers(newAnswers);
     // Backup locally
-    sessionStorage.setItem(`answers_${examData?.hasil_ujian_id}`, JSON.stringify(Array.from(newAnswers.entries())));
+    if (examData) {
+      sessionStorage.setItem(`answers_${examData.hasil_ujian_id}`, JSON.stringify(Array.from(newAnswers.entries())));
+    }
   };
 
   const toggleRagu = () => {
@@ -187,7 +191,9 @@ export default function SimulasiUjianPage() {
       newRagu.add(soalId);
     }
     setRaguList(newRagu);
-    sessionStorage.setItem(`ragu_${examData?.hasil_ujian_id}`, JSON.stringify(Array.from(newRagu)));
+    if (examData) {
+      sessionStorage.setItem(`ragu_${examData.hasil_ujian_id}`, JSON.stringify(Array.from(newRagu)));
+    }
   };
 
   const handleAutoSubmit = async () => {
@@ -202,10 +208,14 @@ export default function SimulasiUjianPage() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!examData) return;
-    const confirm = window.confirm(`Yakin ingin menyelesaikan ujian? Anda memiliki ${soalList.length - answers.size} soal yang belum dijawab.`);
-    if (!confirm) return;
+  // Called when clicking the header red button
+  const handleOpenSubmitModal = () => {
+    setShowSubmitModal(true);
+  };
+
+  // The actual submission logic triggered from the custom modal
+  const confirmSubmit = async () => {
+    if (!examData || isSubmitLoading) return;
 
     setIsSubmitLoading(true);
     try {
@@ -217,6 +227,7 @@ export default function SimulasiUjianPage() {
     } catch (err) {
       toast.error('Gagal menyelesaikan ujian. Silakan coba lagi.');
       setIsSubmitLoading(false);
+      setShowSubmitModal(false);
     }
   };
 
@@ -268,11 +279,10 @@ export default function SimulasiUjianPage() {
           </div>
 
           <button
-            onClick={handleSubmit}
-            disabled={isSubmitLoading}
+            onClick={handleOpenSubmitModal}
             className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-2xl font-extrabold text-sm shadow-lg shadow-red-100 transition-all flex items-center gap-2 active:scale-95"
           >
-            {isSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            <CheckCircle2 className="w-4 h-4" />
             <span className="hidden sm:inline">Selesai Ujian</span>
           </button>
           
@@ -480,6 +490,47 @@ export default function SimulasiUjianPage() {
                 </button>
               ))}
            </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-10 text-center animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-10 h-10" />
+            </div>
+            
+            <h3 className="text-2xl font-extrabold text-gray-900 mb-2">Selesaikan Ujian?</h3>
+            <p className="text-gray-500 mb-8 leading-relaxed">
+              Anda telah menjawab <span className="font-bold text-indigo-600">{answers.size}</span> dari <span className="font-bold">{soalList.length}</span> soal. Yakin ingin mengakhiri sesi sekarang?
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={confirmSubmit}
+                disabled={isSubmitLoading}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-red-100 min-h-[56px] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70"
+              >
+                {isSubmitLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Memproses Hasil...
+                  </>
+                ) : (
+                  'Ya, Selesaikan Sekarang'
+                )}
+              </button>
+              
+              <button
+                onClick={() => setShowSubmitModal(false)}
+                disabled={isSubmitLoading}
+                className="w-full bg-white hover:bg-gray-50 text-gray-500 font-bold py-4 rounded-2xl border border-gray-100 transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                Lanjutkan Mengerjakan
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
