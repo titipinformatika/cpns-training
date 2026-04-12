@@ -11,6 +11,9 @@ import DaftarUjianPage from '../pages/ujian/DaftarUjianPage';
 import DetailUjianPage from '../pages/ujian/DetailUjianPage';
 import SimulasiUjianPage from '../pages/ujian/SimulasiUjianPage';
 import HasilUjianPage from '../pages/ujian/HasilUjianPage';
+import KontribusiSoalPage from '../pages/sosial/KontribusiSoalPage';
+import RiwayatKontribusiPage from '../pages/sosial/RiwayatKontribusiPage';
+import RiwayatLaporanPage from '../pages/sosial/RiwayatLaporanPage';
 
 // Hanya bisa diakses jika BELUM login
 export function PublicRoute() {
@@ -54,6 +57,11 @@ export function AppRoutes() {
         <Route path="/ujian/simulasi" element={<SimulasiUjianPage />} />
         <Route path="/ujian/:id" element={<DetailUjianPage />} />
         <Route path="/ujian/hasil/:id" element={<HasilUjianPage />} />
+
+        {/* Sosial Section */}
+        <Route path="/kontribusi" element={<KontribusiSoalPage />} />
+        <Route path="/kontribusi/riwayat" element={<RiwayatKontribusiPage />} />
+        <Route path="/laporan/riwayat" element={<RiwayatLaporanPage />} />
       </Route>
 
       {/* 404 */}

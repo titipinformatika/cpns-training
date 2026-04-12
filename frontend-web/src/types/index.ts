@@ -165,3 +165,35 @@ export interface LeaderboardEntry {
     biodata: { nama_lengkap: string | null } | null;
   };
 }
+
+// ===== Jenis Soal (untuk dropdown di kontribusi) =====
+export interface JenisSoal {
+  id: number;
+  kategori_soal_id: number;
+  nama: string;
+  deskripsi: string | null;
+}
+
+// ===== Laporan Soal =====
+export interface LaporanSoal {
+  id: number;
+  soal_id: number;
+  jenis_laporan: 'JAWABAN_SALAH' | 'SOAL_SALAH' | 'TYPO' | 'PEMBAHASAN_SALAH' | 'GAMBAR_RUSAK' | 'DUPLIKAT' | 'LAINNYA';
+  deskripsi: string;
+  bukti_screenshot: string | null;
+  status: 'PENDING' | 'DITINJAU' | 'DIPERBAIKI' | 'DITOLAK';
+  review_note: string | null;
+  created_at: string;
+}
+
+// ===== Kontribusi Soal =====
+export interface KontribusiSoal {
+  id: number;
+  kategori_soal: { kode: string; nama: string };
+  jenis_soal: { nama: string };
+  level: 'MUDAH' | 'SEDANG' | 'SULIT' | 'HOST';
+  pertanyaan: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  review_note: string | null;
+  created_at: string;
+}
