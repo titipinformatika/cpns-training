@@ -14,6 +14,16 @@ export const adminDashboardApi = {
     adminApi.get('/admin/dashboard/summary'),
 };
 
+// ===== Users Management =====
+export const adminUsersApi = {
+  getAll: (params?: { page?: number; limit?: number; search?: string }) =>
+    adminApi.get('/admin/users', { params }),
+  update: (id: number, data: any) =>
+    adminApi.patch(`/admin/users/${id}`, data),
+  toggleStatus: (id: number) =>
+    adminApi.delete(`/admin/users/${id}`),
+};
+
 // ===== Master Data CRUD =====
 export const adminMasterApi = {
   // Kategori Soal

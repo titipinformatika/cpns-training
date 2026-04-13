@@ -96,7 +96,13 @@ export async function createPendidikan(req: Request, res: Response, next: NextFu
 
 export async function createJurusan(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await prisma.jurusan.create({ data: req.body });
+    const data = await prisma.jurusan.create({ 
+      data: {
+        nama: req.body.nama,
+        rumpun: req.body.rumpun,
+        tingkat_pendidikan_id: req.body.tingkat_pendidikan_id ? Number(req.body.tingkat_pendidikan_id) : null
+      }
+    });
     res.status(201).json(successResponse(data, 'Jurusan berhasil dibuat'));
   } catch (error) {
     next(error);
@@ -145,11 +151,21 @@ export async function deleteInstansi(req: Request, res: Response, next: NextFunc
 // --- Formasi ---
 export async function createFormasi(req: Request, res: Response, next: NextFunction) {
   try {
-    const { gaji_min, gaji_max, ...body } = req.body;
+    const { 
+      gaji_min, gaji_max, 
+      tingkat_pendidikan_id, jurusan_id,
+      provinsi_kode, kota_kode,
+      ...body 
+    } = req.body;
+    
     const data = await prisma.formasi.create({
       data: {
         ...body,
         created_by: req.admin!.id,
+        tingkat_pendidikan_id: tingkat_pendidikan_id ? Number(tingkat_pendidikan_id) : null,
+        jurusan_id: jurusan_id ? Number(jurusan_id) : null,
+        provinsi_kode: provinsi_kode ? String(provinsi_kode) : null,
+        kota_kode: kota_kode ? String(kota_kode) : null,
         gaji_min: gaji_min ? BigInt(gaji_min) : null,
         gaji_max: gaji_max ? BigInt(gaji_max) : null,
       },
@@ -163,9 +179,18 @@ export async function createFormasi(req: Request, res: Response, next: NextFunct
 export async function updateFormasi(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
-    const { gaji_min, gaji_max, ...body } = req.body;
+    const { 
+      gaji_min, gaji_max, 
+      tingkat_pendidikan_id, jurusan_id,
+      provinsi_kode, kota_kode,
+      ...body 
+    } = req.body;
     
     const updateData: any = { ...body };
+    if (tingkat_pendidikan_id !== undefined) updateData.tingkat_pendidikan_id = tingkat_pendidikan_id ? Number(tingkat_pendidikan_id) : null;
+    if (jurusan_id !== undefined) updateData.jurusan_id = jurusan_id ? Number(jurusan_id) : null;
+    if (provinsi_kode !== undefined) updateData.provinsi_kode = provinsi_kode ? String(provinsi_kode) : null;
+    if (kota_kode !== undefined) updateData.kota_kode = kota_kode ? String(kota_kode) : null;
     if (gaji_min !== undefined) updateData.gaji_min = gaji_min ? BigInt(gaji_min) : null;
     if (gaji_max !== undefined) updateData.gaji_max = gaji_max ? BigInt(gaji_max) : null;
 

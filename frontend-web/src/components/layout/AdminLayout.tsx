@@ -12,13 +12,15 @@ import {
   Menu,
   X,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Users
 } from 'lucide-react';
 import clsx from 'clsx';
 import ConfirmDialog from '../ui/ConfirmDialog';
 
 const adminMenuItems = [
   { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+  { label: 'Manajemen User', path: '/admin/users', icon: Users },
   { label: 'Master Data', path: '/admin/master', icon: Database },
   { label: 'Bank Soal', path: '/admin/bank-soal', icon: BookOpen },
   { label: 'Paket Ujian', path: '/admin/paket-ujian', icon: FileText },
