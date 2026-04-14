@@ -23,6 +23,11 @@ export const createSoalSchema = z.object({
   opsi_e: z.string().optional().nullable(),
   jawaban_benar: z.enum(['A', 'B', 'C', 'D', 'E']).optional().nullable(),
   pembahasan: z.string().optional().nullable(),
+  skor_a: z.coerce.number().int().min(0).max(5).optional().nullable(),
+  skor_b: z.coerce.number().int().min(0).max(5).optional().nullable(),
+  skor_c: z.coerce.number().int().min(0).max(5).optional().nullable(),
+  skor_d: z.coerce.number().int().min(0).max(5).optional().nullable(),
+  skor_e: z.coerce.number().int().min(0).max(5).optional().nullable(),
   is_active: z.boolean().default(true),
 });
 export const updateSoalSchema = createSoalSchema.partial();

@@ -94,6 +94,50 @@ export async function createPendidikan(req: Request, res: Response, next: NextFu
   }
 }
 
+export async function updatePendidikan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await prisma.tingkatPendidikan.update({
+      where: { id: Number(id) },
+      data: req.body,
+    });
+    res.json(successResponse(data, 'Tingkat pendidikan berhasil diperbarui'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deletePendidikan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const numId = Number(id);
+
+    // Safety check: is it being used?
+    const [jurusanCount, formasiCount, biodataCount] = await Promise.all([
+      prisma.jurusan.count({ where: { tingkat_pendidikan_id: numId } }),
+      prisma.formasi.count({ where: { tingkat_pendidikan_id: numId } }),
+      prisma.biodataUser.count({ where: { tingkat_pendidikan_id: numId } }),
+    ]);
+
+    const relations = [];
+    if (jurusanCount > 0) relations.push(`${jurusanCount} Jurusan`);
+    if (formasiCount > 0) relations.push(`${formasiCount} Formasi`);
+    if (biodataCount > 0) relations.push(`${biodataCount} Biodata User`);
+
+    if (relations.length > 0) {
+      throw new AppError(
+        `Tingkat Pendidikan tidak bisa dihapus karena masih digunakan oleh ${relations.join(', ')}`,
+        409
+      );
+    }
+
+    await prisma.tingkatPendidikan.delete({ where: { id: numId } });
+    res.json(successResponse(null, 'Tingkat pendidikan berhasil dihapus'));
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function createJurusan(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await prisma.jurusan.create({ 
@@ -104,6 +148,52 @@ export async function createJurusan(req: Request, res: Response, next: NextFunct
       }
     });
     res.status(201).json(successResponse(data, 'Jurusan berhasil dibuat'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateJurusan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await prisma.jurusan.update({
+      where: { id: Number(id) },
+      data: {
+        nama: req.body.nama,
+        rumpun: req.body.rumpun,
+        tingkat_pendidikan_id: req.body.tingkat_pendidikan_id ? Number(req.body.tingkat_pendidikan_id) : null,
+      },
+    });
+    res.json(successResponse(data, 'Jurusan berhasil diperbarui'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteJurusan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const numId = Number(id);
+
+    // Safety check: is it being used?
+    const [formasiCount, biodataCount] = await Promise.all([
+      prisma.formasi.count({ where: { jurusan_id: numId } }),
+      prisma.biodataUser.count({ where: { jurusan_id: numId } }),
+    ]);
+
+    const relations = [];
+    if (formasiCount > 0) relations.push(`${formasiCount} Formasi`);
+    if (biodataCount > 0) relations.push(`${biodataCount} Biodata User`);
+
+    if (relations.length > 0) {
+      throw new AppError(
+        `Jurusan tidak bisa dihapus karena masih digunakan oleh ${relations.join(', ')}`,
+        409
+      );
+    }
+
+    await prisma.jurusan.delete({ where: { id: numId } });
+    res.json(successResponse(null, 'Jurusan berhasil dihapus'));
   } catch (error) {
     next(error);
   }

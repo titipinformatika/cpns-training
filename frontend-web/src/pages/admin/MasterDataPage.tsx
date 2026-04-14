@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Loader2, X, AlertCircle, Database, Search } from 
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import Pagination from '../../components/common/Pagination';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 const TABS = ['Kategori Soal', 'Jenis Soal', 'Pendidikan', 'Jurusan', 'Instansi', 'Formasi'] as const;
 type TabName = typeof TABS[number];
@@ -16,6 +17,9 @@ export default function MasterDataPage() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [warningMsg, setWarningMsg] = useState('');
 
   // Form states
   const [formData, setFormData] = useState<any>({});
@@ -119,25 +123,74 @@ export default function MasterDataPage() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Yakin hapus data ini? Tindakan tidak bisa dikembalikan.')) return;
+   const handleDelete = (id: number) => {
+    setDeleteId(id);
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteId) return;
+    setIsDeleting(true);
     try {
       switch (activeTab) {
-        case 'Kategori Soal': await adminMasterApi.deleteKategori(id); break;
-        case 'Jenis Soal': await adminMasterApi.deleteJenis(id); break;
-        case 'Instansi': await adminMasterApi.deleteInstansi(id); break;
-        case 'Formasi': await adminMasterApi.deleteFormasi(id); break;
+        case 'Kategori Soal': await adminMasterApi.deleteKategori(deleteId); break;
+        case 'Jenis Soal': await adminMasterApi.deleteJenis(deleteId); break;
+        case 'Pendidikan': await adminMasterApi.deletePendidikan(deleteId); break;
+        case 'Jurusan': await adminMasterApi.deleteJurusan(deleteId); break;
+        case 'Instansi': await adminMasterApi.deleteInstansi(deleteId); break;
+        case 'Formasi': await adminMasterApi.deleteFormasi(deleteId); break;
         default: return;
       }
       toast.success('Data berhasil dihapus');
       fetchData();
-    } catch {
-      toast.error('Gagal menghapus data');
+    } catch (err: any) {
+      const status = err.response?.status;
+      const message = err.response?.data?.message || 'Gagal menghapus data';
+      if (status === 409) {
+        setWarningMsg(message);
+      } else {
+        toast.error(message);
+      }
+    } finally {
+      setIsDeleting(false);
+      setDeleteId(null);
     }
+  };
+
+   const cleanFormasiPayload = (data: any) => {
+    const { jenis_instansi, ...payload } = data;
+    // Map empty strings to null for optional fields and ensure numbers
+    const numFields = ['instansi_id', 'jumlah_formasi', 'tingkat_pendidikan_id', 'jurusan_id', 'gaji_min', 'gaji_max'];
+    const optionalFields = ['tingkat_pendidikan_id', 'jurusan_id', 'provinsi_kode', 'kota_kode', 'gaji_min', 'gaji_max'];
+
+    const result = { ...payload };
+    for (const field of numFields) {
+      if (result[field] !== undefined && result[field] !== null && result[field] !== '') {
+        result[field] = Number(result[field]);
+      }
+    }
+    for (const field of optionalFields) {
+      if (result[field] === '' || result[field] === undefined) {
+        result[field] = null;
+      }
+    }
+    return result;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Frontend Validation for Formasi
+    if (activeTab === 'Formasi') {
+      if (!formData.instansi_id) {
+        toast.error('Instansi wajib dipilih');
+        return;
+      }
+      if (!formData.nama_jabatan?.trim()) {
+        toast.error('Nama jabatan wajib diisi');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       if (editItem) {
@@ -145,8 +198,14 @@ export default function MasterDataPage() {
         switch (activeTab) {
           case 'Kategori Soal': await adminMasterApi.updateKategori(editItem.id, formData); break;
           case 'Jenis Soal': await adminMasterApi.updateJenis(editItem.id, formData); break;
+          case 'Pendidikan': await adminMasterApi.updatePendidikan(editItem.id, formData); break;
+          case 'Jurusan': await adminMasterApi.updateJurusan(editItem.id, formData); break;
           case 'Instansi': await adminMasterApi.updateInstansi(editItem.id, formData); break;
-          case 'Formasi': await adminMasterApi.updateFormasi(editItem.id, formData); break;
+          case 'Formasi': {
+            const cleanPayload = cleanFormasiPayload(formData);
+            await adminMasterApi.updateFormasi(editItem.id, cleanPayload); 
+            break;
+          }
         }
         toast.success('Data berhasil diperbarui');
       } else {
@@ -157,20 +216,30 @@ export default function MasterDataPage() {
           case 'Pendidikan': await adminMasterApi.createPendidikan(formData); break;
           case 'Jurusan': await adminMasterApi.createJurusan(formData); break;
           case 'Instansi': await adminMasterApi.createInstansi(formData); break;
-          case 'Formasi': await adminMasterApi.createFormasi(formData); break;
+          case 'Formasi': {
+            const cleanPayload = cleanFormasiPayload(formData);
+            await adminMasterApi.createFormasi(cleanPayload); 
+            break;
+          }
         }
         toast.success('Data berhasil ditambahkan');
       }
       setShowModal(false);
       fetchData();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal menyimpan data');
+      const resData = err.response?.data;
+      if (resData?.errors && Array.isArray(resData.errors)) {
+        const details = resData.errors.map((e: any) => `${e.field}: ${e.message}`).join('\n');
+        toast.error(`Validasi gagal:\n${details}`, { duration: 5000 });
+      } else {
+        toast.error(resData?.message || 'Terjadi kesalahan pada server');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const canEdit = ['Kategori Soal', 'Jenis Soal', 'Instansi', 'Formasi'].includes(activeTab);
+  const canEdit = ['Kategori Soal', 'Jenis Soal', 'Pendidikan', 'Jurusan', 'Instansi', 'Formasi'].includes(activeTab);
   const canDelete = canEdit;
 
   const renderFormFields = () => {
@@ -193,8 +262,12 @@ export default function MasterDataPage() {
         <select
           value={formData[key] || ''}
           onChange={e => {
-            const val = e.target.value === '' ? null : (isNaN(Number(e.target.value)) ? e.target.value : Number(e.target.value));
-            setFormData({ ...formData, [key]: val });
+            if (e.target.value === '') {
+              setFormData({ ...formData, [key]: null });
+            } else {
+              const selectedOpt = options.find(o => String(o.value) === e.target.value);
+              setFormData({ ...formData, [key]: selectedOpt ? selectedOpt.value : e.target.value });
+            }
           }}
           required={required}
           className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
@@ -233,8 +306,8 @@ export default function MasterDataPage() {
             <div className="col-span-2">{input('Nama Jabatan', 'nama_jabatan')}</div>
             {select('Pendidikan', 'tingkat_pendidikan_id', pendidikans.map(p => ({ value: p.id, label: p.nama })), false)}
             {select('Jurusan', 'jurusan_id', jurusans.map(j => ({ value: j.id, label: j.nama })), false)}
-            {select('Provinsi', 'provinsi_kode', provinces.map(p => ({ value: p.code, label: p.name })), false)}
-            {select('Kota/Kabupaten', 'kota_kode', cities.map(c => ({ value: c.code, label: c.name })), false)}
+            {select('Provinsi', 'provinsi_kode', provinces.map(p => ({ value: p.kode, label: p.nama })), false)}
+            {select('Kota/Kabupaten', 'kota_kode', cities.map(c => ({ value: c.kode, label: c.nama })), false)}
             {input('Jumlah Formasi', 'jumlah_formasi', 'number')}
             <div className="col-span-2 grid grid-cols-2 gap-3">
               {input('Gaji Min', 'gaji_min', 'number', false)}
@@ -392,8 +465,31 @@ export default function MasterDataPage() {
               </div>
             </form>
           </div>
-        </div>
+         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteId !== null}
+        title="Hapus Data?"
+        description="Yakin hapus data ini? Tindakan tidak bisa dikembalikan."
+        variant="danger"
+        confirmLabel="Ya, Hapus"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setDeleteId(null)}
+      />
+
+      {/* Warning Dialog (Relation Conflict) */}
+      <ConfirmDialog
+        isOpen={!!warningMsg}
+        title="Tidak Dapat Menghapus!"
+        description={warningMsg}
+        variant="warning"
+        confirmLabel="Mengerti"
+        onConfirm={() => setWarningMsg('')}
+        onCancel={() => setWarningMsg('')}
+      />
     </div>
   );
 }

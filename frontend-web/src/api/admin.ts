@@ -45,10 +45,18 @@ export const adminMasterApi = {
   // Pendidikan
   createPendidikan: (data: { nama: string; urutan: number }) =>
     adminApi.post('/admin/master/pendidikan', data),
+  updatePendidikan: (id: number, data: any) =>
+    adminApi.patch(`/admin/master/pendidikan/${id}`, data),
+  deletePendidikan: (id: number) =>
+    adminApi.delete(`/admin/master/pendidikan/${id}`),
 
   // Jurusan
   createJurusan: (data: { nama: string; rumpun?: string }) =>
     adminApi.post('/admin/master/jurusan', data),
+  updateJurusan: (id: number, data: any) =>
+    adminApi.patch(`/admin/master/jurusan/${id}`, data),
+  deleteJurusan: (id: number) =>
+    adminApi.delete(`/admin/master/jurusan/${id}`),
 
   // Instansi
   createInstansi: (data: { nama: string; singkatan?: string; jenis?: string }) =>
@@ -103,7 +111,7 @@ export const adminPaketUjianApi = {
     adminApi.get('/admin/backoffice/paket-ujian', { params }),
   update: (id: number, data: any) =>
     adminApi.patch(`/admin/backoffice/paket-ujian/${id}`, data),
-  addSoal: (ujianId: number, data: { soal_ids: number[] }) =>
+   addSoal: (ujianId: number, data: { soal_id: number; nomor_urut: number; skor?: number; skor_tkp?: any }) =>
     adminApi.post(`/admin/backoffice/paket-ujian/${ujianId}/soal`, data),
   getSoal: (ujianId: number) =>
     adminApi.get(`/admin/backoffice/paket-ujian/${ujianId}/soal`),
@@ -111,6 +119,8 @@ export const adminPaketUjianApi = {
     adminApi.delete(`/admin/backoffice/paket-ujian/soal/${mappingId}`),
   reorderSoal: (data: { items: { id: number; nomor_urut: number }[] }) =>
     adminApi.patch('/admin/backoffice/paket-ujian/soal/reorder', data),
+  delete: (id: number) =>
+    adminApi.delete(`/admin/backoffice/paket-ujian/${id}`),
 };
 
 // ===== Review Laporan & Kontribusi =====

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { adminPaketUjianApi } from '../../api/admin';
-import { Plus, Pencil, Loader2, X, FileText, ChevronRight, AlertCircle } from 'lucide-react';
+import { adminPaketUjianApi, adminBankSoalApi } from '../../api/admin';
+import { Plus, Pencil, Trash2, Loader2, X, FileText, ChevronRight, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 const TIPE_OPTIONS = ['TRYOUT', 'LATIHAN', 'QUIZ'];
 const PERUNTUKAN_OPTIONS = ['FREE', 'PREMIUM', 'ALL'];
@@ -22,6 +23,10 @@ export default function PaketUjianPage() {
   const [formDurasi, setFormDurasi] = useState(120);
   const [formTipe, setFormTipe] = useState('TRYOUT');
   const [formPeruntukan, setFormPeruntukan] = useState('ALL');
+  const [bankSoalList, setBankSoalList] = useState<any[]>([]);
+  const [formBankSoalId, setFormBankSoalId] = useState<number | ''>('');
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -36,25 +41,54 @@ export default function PaketUjianPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page]);
+  useEffect(() => {
+    fetchData();
+  }, [page]);
+
+  useEffect(() => {
+    if (showModal && bankSoalList.length === 0) {
+      adminBankSoalApi.getAll({ limit: 100 }).then(r => setBankSoalList(r.data.data || [])).catch(() => {});
+    }
+  }, [showModal, bankSoalList.length]);
 
   const openCreate = () => {
     setEditItem(null);
-    setFormNama(''); setFormDeskripsi(''); setFormDurasi(120); setFormTipe('TRYOUT'); setFormPeruntukan('ALL');
+    setFormNama('');
+    setFormDeskripsi('');
+    setFormDurasi(120);
+    setFormTipe('TRYOUT');
+    setFormPeruntukan('ALL');
+    setFormBankSoalId('');
     setShowModal(true);
   };
 
   const openEdit = (item: any) => {
     setEditItem(item);
-    setFormNama(item.nama); setFormDeskripsi(item.deskripsi || ''); setFormDurasi(item.durasi_menit); setFormTipe(item.tipe); setFormPeruntukan(item.peruntukan);
+    setFormNama(item.nama);
+    setFormDeskripsi(item.deskripsi || '');
+    setFormDurasi(item.durasi_menit);
+    setFormTipe(item.tipe);
+    setFormPeruntukan(item.peruntukan);
+    setFormBankSoalId(item.bank_soal_id || '');
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formBankSoalId) {
+      toast.error('Pilih Bank Soal');
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const payload = { nama: formNama, deskripsi: formDeskripsi || undefined, durasi_menit: formDurasi, tipe: formTipe, peruntukan: formPeruntukan };
+      const payload = {
+        nama: formNama,
+        deskripsi: formDeskripsi || undefined,
+        durasi_menit: formDurasi,
+        tipe: formTipe,
+        peruntukan: formPeruntukan,
+        bank_soal_id: Number(formBankSoalId)
+      };
       if (editItem) {
         await adminPaketUjianApi.update(editItem.id, payload);
         toast.success('Paket ujian diperbarui');
@@ -65,9 +99,34 @@ export default function PaketUjianPage() {
       setShowModal(false);
       fetchData();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal menyimpan');
+      const resData = err.response?.data;
+      if (resData?.data && Array.isArray(resData.data)) {
+        const details = resData.data.map((errIssue: any) => `${errIssue.field}: ${errIssue.message}`).join(', ');
+        toast.error(`Validasi gagal: ${details}`, { duration: 5000 });
+      } else {
+        toast.error(resData?.message || 'Gagal menyimpan');
+      }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = (id: number) => {
+    setDeleteId(id);
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteId) return;
+    setIsDeleting(true);
+    try {
+      await adminPaketUjianApi.delete(deleteId);
+      toast.success('Paket ujian berhasil dihapus');
+      fetchData();
+    } catch {
+      toast.error('Gagal menghapus paket ujian');
+    } finally {
+      setIsDeleting(false);
+      setDeleteId(null);
     }
   };
 
@@ -129,7 +188,10 @@ export default function PaketUjianPage() {
                       <td className="px-4 py-3 text-gray-400">{item.peruntukan}</td>
                       <td className="px-4 py-3">{item._count?.ujian_soal ?? 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => openEdit(item)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg"><Pencil className="w-3.5 h-3.5" /></button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEdit(item)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDelete(item.id)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -158,6 +220,13 @@ export default function PaketUjianPage() {
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1">Nama</label>
                 <input value={formNama} onChange={e => setFormNama(e.target.value)} required className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-1">Pilih Bank Soal</label>
+                <select value={formBankSoalId} onChange={event => setFormBankSoalId(event.target.value ? Number(event.target.value) : '')} required className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm outline-none">
+                  <option value="">Pilih Bank Soal</option>
+                  {bankSoalList.map(b => <option key={b.id} value={b.id}>{b.nama}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1">Deskripsi</label>
@@ -192,6 +261,18 @@ export default function PaketUjianPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteId !== null}
+        title="Hapus Paket Ujian?"
+        description="Yakin hapus paket ujian ini? Tindakan tidak bisa dikembalikan."
+        variant="danger"
+        confirmLabel="Ya, Hapus"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

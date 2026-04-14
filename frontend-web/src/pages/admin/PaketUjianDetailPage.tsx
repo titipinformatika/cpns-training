@@ -4,6 +4,7 @@ import { adminPaketUjianApi, adminBankSoalApi, adminSoalApi } from '../../api/ad
 import { ArrowLeft, Plus, Trash2, Loader2, X, Search, AlertCircle, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 export default function PaketUjianDetailPage() {
   const { id } = useParams();
@@ -22,6 +23,11 @@ export default function PaketUjianDetailPage() {
   const [selectedSoalIds, setSelectedSoalIds] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchSoal, setSearchSoal] = useState('');
+  const [removeMappingId, setRemoveMappingId] = useState<number | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  // TKP Score state (Default: A=1, B=2, C=3, D=4, E=5)
+  const [skorTkp, setSkorTkp] = useState({ skor_a: 1, skor_b: 2, skor_c: 3, skor_d: 4, skor_e: 5 });
 
   const fetchMappedSoal = async () => {
     setIsLoading(true);
@@ -37,7 +43,7 @@ export default function PaketUjianDetailPage() {
 
   useEffect(() => {
     fetchMappedSoal();
-    // Load basic ujian info from getAll (since there's no direct getById for paket ujian)
+    // Load basic ujian info from getAll
     adminPaketUjianApi.getAll({ limit: 100 }).then(r => {
       const found = (r.data.data || []).find((u: any) => u.id === ujianId);
       setUjianInfo(found);
@@ -77,7 +83,28 @@ export default function PaketUjianDetailPage() {
     if (selectedSoalIds.size === 0) { toast.error('Pilih minimal 1 soal'); return; }
     setIsSubmitting(true);
     try {
-      await adminPaketUjianApi.addSoal(ujianId, { soal_ids: Array.from(selectedSoalIds) });
+      const soalArray = Array.from(selectedSoalIds);
+      let nextNomor = mappedSoal.length > 0 
+        ? Math.max(...mappedSoal.map(m => m.nomor_urut)) + 1 
+        : 1;
+
+      for (const soalId of soalArray) {
+        const soalInfo = availableSoal.find(s => s.id === soalId);
+        const isTkp = soalInfo?.kategori_soal?.nama?.toUpperCase() === 'TKP';
+        
+        const payload: any = {
+          soal_id: soalId,
+          nomor_urut: nextNomor++,
+          skor: 5
+        };
+
+        if (isTkp) {
+          payload.skor_tkp = skorTkp;
+        }
+
+        await adminPaketUjianApi.addSoal(ujianId, payload);
+      }
+
       toast.success(`${selectedSoalIds.size} soal ditambahkan ke paket`);
       setShowAddModal(false);
       fetchMappedSoal();
@@ -88,14 +115,22 @@ export default function PaketUjianDetailPage() {
     }
   };
 
-  const handleRemoveSoal = async (mappingId: number) => {
-    if (!confirm('Hapus soal ini dari paket ujian?')) return;
+  const handleRemoveSoal = (mappingId: number) => {
+    setRemoveMappingId(mappingId);
+  };
+
+  const handleRemoveConfirmed = async () => {
+    if (!removeMappingId) return;
+    setIsRemoving(true);
     try {
-      await adminPaketUjianApi.removeSoal(mappingId);
+      await adminPaketUjianApi.removeSoal(removeMappingId);
       toast.success('Soal dihapus dari paket');
       fetchMappedSoal();
     } catch {
       toast.error('Gagal menghapus soal');
+    } finally {
+      setIsRemoving(false);
+      setRemoveMappingId(null);
     }
   };
 
@@ -135,6 +170,7 @@ export default function PaketUjianDetailPage() {
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase">Pertanyaan</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase">Kategori</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase">Level</th>
+                  <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase">Skor</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase text-right">Aksi</th>
                 </tr>
               </thead>
@@ -150,6 +186,17 @@ export default function PaketUjianDetailPage() {
                       m.soal?.level === 'SULIT' ? 'bg-red-900/30 text-red-400' :
                       'bg-purple-900/30 text-purple-400'
                     )}>{m.soal?.level === 'HOST' ? 'HOTS' : m.soal?.level}</span></td>
+                    <td className="px-4 py-3">
+                      {m.skor_tkp ? (
+                        <div className="flex gap-1">
+                          {[m.skor_tkp.skor_a, m.skor_tkp.skor_b, m.skor_tkp.skor_c, m.skor_tkp.skor_d, m.skor_tkp.skor_e].map((s, idx) => (
+                            <span key={idx} className="w-5 h-5 flex items-center justify-center bg-gray-800 rounded text-[9px] font-bold text-amber-500 border border-amber-900/50">{s}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 font-bold">{m.skor}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => handleRemoveSoal(m.id)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
                     </td>
@@ -217,7 +264,39 @@ export default function PaketUjianDetailPage() {
                   </div>
 
                   {selectedSoalIds.size > 0 && (
-                    <p className="text-sm text-emerald-400 font-semibold">{selectedSoalIds.size} soal dipilih</p>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-emerald-400 font-semibold">{selectedSoalIds.size} soal dipilih</p>
+                      </div>
+                      
+                      {/* TKP Score Settings if any TKP soal selected */}
+                      {Array.from(selectedSoalIds).some(id => availableSoal.find(s => s.id === id)?.kategori_soal?.nama?.toUpperCase() === 'TKP') && (
+                        <div className="bg-amber-900/20 border border-amber-800/50 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center gap-2 text-amber-400">
+                            <AlertCircle className="w-4 h-4" />
+                            <h4 className="text-xs font-bold uppercase tracking-wider">Pengaturan Skor TKP</h4>
+                          </div>
+                          <div className="grid grid-cols-5 gap-2">
+                            {['A', 'B', 'C', 'D', 'E'].map((label) => {
+                              const key = `skor_${label.toLowerCase()}` as keyof typeof skorTkp;
+                              return (
+                                <div key={label}>
+                                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Opsi {label}</label>
+                                  <input 
+                                    type="number" 
+                                    min={0} max={5}
+                                    value={(skorTkp as any)[key]} 
+                                    onChange={e => setSkorTkp({...skorTkp, [key]: Number(e.target.value)})}
+                                    className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-white text-xs text-center outline-none focus:border-amber-500" 
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[10px] text-amber-500/70 italic">* Skor ini akan diterapkan pada semua soal TKP yang dipilih dalam batch ini.</p>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </>
               )}
@@ -225,7 +304,11 @@ export default function PaketUjianDetailPage() {
 
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-600">Batal</button>
-              <button onClick={handleAddSoal} disabled={isSubmitting || selectedSoalIds.size === 0} className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-70 flex items-center justify-center gap-2">
+              <button 
+                onClick={handleAddSoal} 
+                disabled={isSubmitting || selectedSoalIds.size === 0} 
+                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-70 flex items-center justify-center gap-2"
+              >
                 {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Tambahkan ({selectedSoalIds.size})
               </button>
@@ -233,6 +316,18 @@ export default function PaketUjianDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Remove Confirmation */}
+      <ConfirmDialog
+        isOpen={removeMappingId !== null}
+        title="Hapus Soal dari Paket?"
+        description="Yakin hapus soal ini dari paket ujian? Data soal aslinya tetap ada di Bank Soal."
+        variant="danger"
+        confirmLabel="Ya, Hapus"
+        isLoading={isRemoving}
+        onConfirm={handleRemoveConfirmed}
+        onCancel={() => setRemoveMappingId(null)}
+      />
     </div>
   );
 }

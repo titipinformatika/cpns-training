@@ -29,7 +29,8 @@ export async function createSoal(req: Request, res: Response, next: NextFunction
   try {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const body = sanitizeObject(req.body, [
-      'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'pembahasan'
+      'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'pembahasan',
+      'skor_a', 'skor_b', 'skor_c', 'skor_d', 'skor_e'
     ]);
     
     const dataSoal = {
@@ -115,7 +116,8 @@ export async function updateSoal(req: Request, res: Response, next: NextFunction
     if (!existing) throw new AppError('Soal tidak ditemukan', 404);
 
     const body = sanitizeObject(req.body, [
-      'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'pembahasan'
+      'pertanyaan', 'opsi_a', 'opsi_b', 'opsi_c', 'opsi_d', 'opsi_e', 'pembahasan',
+      'skor_a', 'skor_b', 'skor_c', 'skor_d', 'skor_e'
     ]);
     const updateData: any = { ...body };
 

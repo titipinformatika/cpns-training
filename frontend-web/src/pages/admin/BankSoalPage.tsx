@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { adminBankSoalApi } from '../../api/admin';
 import { Plus, Pencil, Trash2, Loader2, X, BookOpen, ChevronRight, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 export default function BankSoalPage() {
   const [data, setData] = useState<any[]>([]);
@@ -12,6 +13,8 @@ export default function BankSoalPage() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formNama, setFormNama] = useState('');
   const [formDeskripsi, setFormDeskripsi] = useState('');
 
@@ -44,14 +47,22 @@ export default function BankSoalPage() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Yakin hapus bank soal ini?')) return;
+   const handleDelete = (id: number) => {
+    setDeleteId(id);
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteId) return;
+    setIsDeleting(true);
     try {
-      await adminBankSoalApi.delete(id);
+      await adminBankSoalApi.delete(deleteId);
       toast.success('Bank soal dihapus');
       fetchData();
     } catch {
       toast.error('Gagal menghapus');
+    } finally {
+      setIsDeleting(false);
+      setDeleteId(null);
     }
   };
 
@@ -170,6 +181,18 @@ export default function BankSoalPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteId !== null}
+        title="Hapus Bank Soal?"
+        description="Yakin hapus bank soal ini? Semua soal di dalamnya mungkin terdampak."
+        variant="danger"
+        confirmLabel="Ya, Hapus"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

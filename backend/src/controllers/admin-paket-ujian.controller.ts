@@ -134,3 +134,15 @@ export async function getSoalInPaket(req: Request, res: Response, next: NextFunc
     next(error);
   }
 }
+
+export async function deletePaketUjian(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    await prisma.ujian.delete({
+      where: { id: Number(id) },
+    });
+    res.json(successResponse(null, 'Paket ujian berhasil dihapus'));
+  } catch (error) {
+    next(error);
+  }
+}

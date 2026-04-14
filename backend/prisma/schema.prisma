@@ -280,6 +280,11 @@ model Soal {
   jawaban_benar     JawabanOpsi?
   pembahasan        String?      @db.Text
   pembahasan_gambar String?      @db.VarChar(255)
+  skor_a            Int?
+  skor_b            Int?
+  skor_c            Int?
+  skor_d            Int?
+  skor_e            Int?
   is_active         Boolean      @default(true)
   created_by_admin  Int?
   created_at        DateTime     @default(now())

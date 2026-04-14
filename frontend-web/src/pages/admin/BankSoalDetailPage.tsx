@@ -5,6 +5,7 @@ import { masterApi } from '../../api/master';
 import { Plus, Pencil, Trash2, Loader2, X, ArrowLeft, Search, ToggleLeft, ToggleRight, ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 const LEVELS = ['MUDAH', 'SEDANG', 'SULIT', 'HOST'];
 const OPSI_LABELS = ['A', 'B', 'C', 'D', 'E'];
@@ -32,6 +33,8 @@ export default function BankSoalDetailPage() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form fields
   const [formKategoriId, setFormKategoriId] = useState('');
@@ -41,6 +44,7 @@ export default function BankSoalDetailPage() {
   const [formOpsi, setFormOpsi] = useState(['', '', '', '', '']);
   const [formJawabanBenar, setFormJawabanBenar] = useState('A');
   const [formPembahasan, setFormPembahasan] = useState('');
+  const [formSkor, setFormSkor] = useState({ skor_a: 5, skor_b: 0, skor_c: 0, skor_d: 0, skor_e: 0 });
 
   // Image files
   const [pertanyaanImg, setPertanyaanImg] = useState<File | null>(null);
@@ -58,7 +62,7 @@ export default function BankSoalDetailPage() {
 
   useEffect(() => {
     if (formKategoriId) {
-      masterApi.getJenisSoal(Number(formKategoriId)).then(r => setJeniss(r.data.data)).catch(() => {});
+      masterApi.getJenisSoal({ kategori_id: Number(formKategoriId) }).then(r => setJeniss(r.data.data)).catch(() => {});
     } else {
       setJeniss([]);
     }
@@ -97,6 +101,7 @@ export default function BankSoalDetailPage() {
     setFormOpsi(['', '', '', '', '']);
     setFormJawabanBenar('A');
     setFormPembahasan('');
+    setFormSkor({ skor_a: 5, skor_b: 0, skor_c: 0, skor_d: 0, skor_e: 0 });
     setPertanyaanImg(null);
     setOpsiImgs([null, null, null, null, null]);
     setPembahasanImg(null);
@@ -112,6 +117,13 @@ export default function BankSoalDetailPage() {
     setFormOpsi([item.opsi_a || '', item.opsi_b || '', item.opsi_c || '', item.opsi_d || '', item.opsi_e || '']);
     setFormJawabanBenar(item.jawaban_benar || 'A');
     setFormPembahasan(item.pembahasan || '');
+    setFormSkor({
+      skor_a: item.skor_a ?? 5,
+      skor_b: item.skor_b ?? 0,
+      skor_c: item.skor_c ?? 0,
+      skor_d: item.skor_d ?? 0,
+      skor_e: item.skor_e ?? 0,
+    });
     setPertanyaanImg(null);
     setOpsiImgs([null, null, null, null, null]);
     setPembahasanImg(null);
@@ -128,14 +140,22 @@ export default function BankSoalDetailPage() {
     }
   };
 
-  const handleDelete = async (soalId: number) => {
-    if (!confirm('Yakin hapus soal ini?')) return;
+   const handleDelete = (soalId: number) => {
+    setDeleteId(soalId);
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteId) return;
+    setIsDeleting(true);
     try {
-      await adminSoalApi.delete(soalId);
+      await adminSoalApi.delete(deleteId);
       toast.success('Soal dihapus');
       fetchSoal();
     } catch {
       toast.error('Gagal menghapus soal');
+    } finally {
+      setIsDeleting(false);
+      setDeleteId(null);
     }
   };
 
@@ -155,6 +175,13 @@ export default function BankSoalDetailPage() {
       OPSI_LABELS.forEach((label, i) => fd.append(`opsi_${label.toLowerCase()}`, formOpsi[i]));
       fd.append('jawaban_benar', formJawabanBenar);
       if (formPembahasan) fd.append('pembahasan', formPembahasan);
+
+      const isTkp = kategoris.find(k => k.id === Number(formKategoriId))?.kode === 'TKP';
+      if (isTkp) {
+        Object.entries(formSkor).forEach(([key, val]) => fd.append(key, String(val)));
+      } else {
+        fd.append('skor_a', '5'); 
+      }
 
       if (pertanyaanImg) fd.append('pertanyaan_gambar', pertanyaanImg);
       OPSI_LABELS.forEach((label, i) => {
@@ -330,8 +357,22 @@ export default function BankSoalDetailPage() {
               </div>
 
               {OPSI_LABELS.map((label, i) => (
-                <div key={label}>
-                  <label className="block text-xs font-bold text-gray-400 mb-1">Opsi {label}</label>
+                <div key={label} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-gray-400">Opsi {label}</label>
+                    {kategoris.find(k => k.id === Number(formKategoriId))?.kode === 'TKP' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase">Skor</span>
+                        <input
+                          type="number"
+                          min="0" max="5"
+                          value={(formSkor as any)[`skor_${label.toLowerCase()}`]}
+                          onChange={e => setFormSkor({...formSkor, [`skor_${label.toLowerCase()}`]: Number(e.target.value)})}
+                          className="w-12 px-1 py-0.5 bg-gray-900 border border-gray-600 rounded text-amber-500 text-xs text-center font-bold outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    )}
+                  </div>
                   <input
                     value={formOpsi[i]}
                     onChange={e => { const n = [...formOpsi]; n[i] = e.target.value; setFormOpsi(n); }}
@@ -359,6 +400,18 @@ export default function BankSoalDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteId !== null}
+        title="Hapus Soal?"
+        description="Yakin hapus soal ini? Tindakan tidak bisa dikembalikan."
+        variant="danger"
+        confirmLabel="Ya, Hapus"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

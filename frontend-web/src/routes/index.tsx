@@ -132,7 +132,9 @@ export function AppRoutes() {
             
             {/* Aliases/Legacy paths if any */}
             <Route path="/admin/bank-soal" element={<BankSoalPage />} />
+            <Route path="/admin/bank-soal/:id" element={<BankSoalDetailPage />} />
             <Route path="/admin/paket-ujian" element={<PaketUjianPage />} />
+            <Route path="/admin/paket-ujian/:id" element={<PaketUjianDetailPage />} />
             <Route path="/admin/laporan" element={<ReviewLaporanPage />} />
             <Route path="/admin/kontribusi" element={<ReviewKontribusiPage />} />
           </Route>

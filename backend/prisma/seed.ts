@@ -79,7 +79,20 @@ async function main() {
   }
 
   // 3. Admin & Instansi
-  const admin = await prisma.admin.findFirst({ where: { role: 'SUPER_ADMIN' } });
+  let admin = await prisma.admin.findFirst({ where: { role: 'SUPER_ADMIN' } });
+  
+  if (!admin) {
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    admin = await prisma.admin.create({
+      data: {
+        nama: 'Super Admin',
+        email: 'admin@titipinformatika.com',
+        password: hashedPassword,
+        role: 'SUPER_ADMIN',
+      }
+    });
+    console.log('✅ Default Super Admin created (admin123)');
+  }
   
   const instansiList = [
     { nama: 'Kementerian Hukum dan Hak Asasi Manusia', singkatan: 'KEMENKUMHAM', jenis: 'KEMENTERIAN' },

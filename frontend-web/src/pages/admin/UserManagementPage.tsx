@@ -4,6 +4,7 @@ import { Users, Search, Loader2, AlertCircle, ShieldCheck, ShieldAlert, MoreVert
 import toast from 'react-hot-toast';
 import Pagination from '../../components/common/Pagination';
 import clsx from 'clsx';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -11,6 +12,8 @@ export default function UserManagementPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [changeCategoryUser, setChangeCategoryUser] = useState<any | null>(null);
+  const [isChangingCategory, setIsChangingCategory] = useState(false);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -39,6 +42,22 @@ export default function UserManagementPage() {
       fetchUsers();
     } catch {
       toast.error('Gagal mengubah status user');
+    }
+  };
+
+  const handleChangeCategory = async () => {
+    if (!changeCategoryUser) return;
+    setIsChangingCategory(true);
+    const newCategory = changeCategoryUser.kategori === 'PREMIUM' ? 'FREE' : 'PREMIUM';
+    try {
+      await adminUsersApi.update(changeCategoryUser.id, { kategori: newCategory });
+      toast.success(`Kategori user "${changeCategoryUser.nama}" diubah menjadi ${newCategory}`);
+      fetchUsers();
+    } catch {
+      toast.error('Gagal mengubah kategori user');
+    } finally {
+      setIsChangingCategory(false);
+      setChangeCategoryUser(null);
     }
   };
 
@@ -104,12 +123,15 @@ export default function UserManagementPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={clsx(
-                          "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                          user.kategori === 'PREMIUM' ? "bg-amber-500/10 text-amber-500" : "bg-gray-800 text-gray-500"
-                        )}>
+                        <button
+                          onClick={() => setChangeCategoryUser(user)}
+                          className={clsx(
+                            "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity",
+                            user.kategori === 'PREMIUM' ? "bg-amber-500/10 text-amber-500" : "bg-gray-800 text-gray-500"
+                          )}
+                        >
                           {user.kategori}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5">
@@ -150,6 +172,18 @@ export default function UserManagementPage() {
           </>
         )}
       </div>
+
+      {/* category Toggle Confirmation */}
+      <ConfirmDialog
+        isOpen={changeCategoryUser !== null}
+        title="Ubah Kategori User?"
+        description={`Ubah kategori "${changeCategoryUser?.nama}" dari ${changeCategoryUser?.kategori} menjadi ${changeCategoryUser?.kategori === 'PREMIUM' ? 'FREE' : 'PREMIUM'}?`}
+        variant="warning"
+        confirmLabel="Ya, Ubah"
+        isLoading={isChangingCategory}
+        onConfirm={handleChangeCategory}
+        onCancel={() => setChangeCategoryUser(null)}
+      />
     </div>
   );
 }

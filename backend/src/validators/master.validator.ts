@@ -27,12 +27,14 @@ export const createPendidikanSchema = z.object({
   nama: z.string().min(1, 'Nama pendidikan wajib diisi').max(50),
   urutan: z.number().int().default(0),
 });
+export const updatePendidikanSchema = createPendidikanSchema.partial();
 
 export const createJurusanSchema = z.object({
   nama: z.string().min(1, 'Nama jurusan wajib diisi').max(200),
   rumpun: z.string().optional(),
   tingkat_pendidikan_id: z.number().int().positive().optional().nullable(),
 });
+export const updateJurusanSchema = createJurusanSchema.partial();
 
 // == Instansi & Formasi ==
 export const createInstansiSchema = z.object({
@@ -51,11 +53,11 @@ export const createInstansiSchema = z.object({
 export const updateInstansiSchema = createInstansiSchema.partial();
 
 export const createFormasiSchema = z.object({
-  instansi_id: z.number().int().positive('Instansi ID harus valid'),
+  instansi_id: z.coerce.number().int().positive('Instansi ID harus valid'),
   nama_jabatan: z.string().min(1, 'Nama jabatan wajib diisi').max(200),
-  tingkat_pendidikan_id: z.number().int().positive().optional().nullable(),
-  jurusan_id: z.number().int().positive().optional().nullable(),
-  jumlah_formasi: z.number().int().positive().default(1),
+  tingkat_pendidikan_id: z.coerce.number().int().positive().optional().nullable(),
+  jurusan_id: z.coerce.number().int().positive().optional().nullable(),
+  jumlah_formasi: z.coerce.number().int().positive().default(1),
   provinsi_kode: z.string().max(10).optional().nullable(),
   kota_kode: z.string().max(10).optional().nullable(),
   gaji_min: z.coerce.number().optional().nullable(),
