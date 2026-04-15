@@ -39,3 +39,13 @@ backend/build/
 .DS_Store
 .vscode/
 .idea/
+
+# Compiled files in backend (not in dist)
+backend/*.js
+backend/*.js.map
+backend/*.d.ts
+backend/*.d.ts.map
+backend/prisma/*.js
+backend/prisma/*.js.map
+backend/prisma/*.d.ts
+backend/prisma/*.d.ts.map

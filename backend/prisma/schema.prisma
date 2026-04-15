@@ -4,7 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -88,9 +88,11 @@ enum StatusSesi {
 
 enum JenisInstansi {
   KEMENTERIAN
-  LEMBAGA
-  PEMDA
-  LAINNYA
+  LEMBAGA_NON_KEMENTERIAN
+  PEMDA_PROVINSI
+  PEMDA_KAB_KOTA
+  INSTANSI_VERTIKAL
+  LEMBAGA_NEGARA_INDEPENDEN
 }
 
 enum JenisKelamin {
@@ -121,15 +123,15 @@ enum StatusLaporan {
 
 // 1. users
 model User {
-  id                 Int                     @id @default(autoincrement())
-  nama               String                  @db.VarChar(100)
-  email              String                  @unique @db.VarChar(150)
-  password           String                  @db.VarChar(255)
-  kategori           UserKategori            @default(FREE)
-  avatar             String?                 @db.VarChar(255)
-  is_active          Boolean                 @default(true)
-  created_at         DateTime                @default(now())
-  updated_at         DateTime                @updatedAt
+  id         Int          @id @default(autoincrement())
+  nama       String       @db.VarChar(100)
+  email      String       @unique @db.VarChar(150)
+  password   String       @db.VarChar(255)
+  kategori   UserKategori @default(FREE)
+  avatar     String?      @db.VarChar(255)
+  is_active  Boolean      @default(true)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
 
   // Relations
   kontribusi_soal    KontribusiSoal[]
@@ -145,14 +147,14 @@ model User {
 
 // 2. admins
 model Admin {
-  id              Int              @id @default(autoincrement())
-  nama            String           @db.VarChar(100)
-  email           String           @unique @db.VarChar(150)
-  password        String           @db.VarChar(255)
-  role            AdminRole        @default(ADMIN)
-  is_active       Boolean          @default(true)
-  created_at      DateTime         @default(now())
-  updated_at      DateTime         @updatedAt
+  id         Int       @id @default(autoincrement())
+  nama       String    @db.VarChar(100)
+  email      String    @unique @db.VarChar(150)
+  password   String    @db.VarChar(255)
+  role       AdminRole @default(ADMIN)
+  is_active  Boolean   @default(true)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
 
   // Relations
   menus           Menu[]
@@ -278,6 +280,11 @@ model Soal {
   jawaban_benar     JawabanOpsi?
   pembahasan        String?      @db.Text
   pembahasan_gambar String?      @db.VarChar(255)
+  skor_a            Int?
+  skor_b            Int?
+  skor_c            Int?
+  skor_d            Int?
+  skor_e            Int?
   is_active         Boolean      @default(true)
   created_by_admin  Int?
   created_at        DateTime     @default(now())
@@ -316,6 +323,11 @@ model KontribusiSoal {
   jawaban_benar     JawabanOpsi?
   pembahasan        String?          @db.Text
   pembahasan_gambar String?          @db.VarChar(255)
+  skor_a            Int?
+  skor_b            Int?
+  skor_c            Int?
+  skor_d            Int?
+  skor_e            Int?
   status            StatusKontribusi @default(PENDING)
   reviewed_by       Int?
   review_note       String?          @db.Text
@@ -366,8 +378,8 @@ model UjianSoal {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  ujian         Ujian              @relation(fields: [ujian_id], references: [id], onDelete: Cascade)
-  soal          Soal               @relation(fields: [soal_id], references: [id])
+  ujian         Ujian             @relation(fields: [ujian_id], references: [id], onDelete: Cascade)
+  soal          Soal              @relation(fields: [soal_id], references: [id])
   skor_tkp      UjianSoalSkorTkp?
   jawaban_ujian JawabanUjian[]
 
@@ -520,19 +532,24 @@ model TingkatPendidikan {
   urutan     Int      @default(0)
   created_at DateTime @default(now())
 
-  biodata BiodataUser[]
+  biodata  BiodataUser[]
+  jurusans Jurusan[]
+  formasis Formasi[]
 
   @@map("tingkat_pendidikan")
 }
 
 // 19. jurusan
 model Jurusan {
-  id         Int      @id @default(autoincrement())
-  nama       String   @db.VarChar(200)
-  rumpun     String?  @db.VarChar(100)
-  created_at DateTime @default(now())
+  id                    Int      @id @default(autoincrement())
+  tingkat_pendidikan_id Int?
+  nama                  String   @db.VarChar(200)
+  rumpun                String?  @db.VarChar(100)
+  created_at            DateTime @default(now())
 
-  biodata BiodataUser[]
+  tingkat_pendidikan TingkatPendidikan? @relation(fields: [tingkat_pendidikan_id], references: [id])
+  biodata            BiodataUser[]
+  formasi            Formasi[]
 
   @@index([nama])
   @@map("jurusan")
@@ -543,7 +560,7 @@ model Instansi {
   id         Int           @id @default(autoincrement())
   nama       String        @db.VarChar(200)
   singkatan  String?       @db.VarChar(50)
-  jenis      JenisInstansi @default(LEMBAGA)
+  jenis      JenisInstansi @default(LEMBAGA_NON_KEMENTERIAN)
   logo       String?       @db.VarChar(255)
   is_active  Boolean       @default(true)
   created_by Int
@@ -560,22 +577,28 @@ model Instansi {
 
 // 21. formasi
 model Formasi {
-  id                     Int      @id @default(autoincrement())
-  instansi_id            Int
-  nama_jabatan           String   @db.VarChar(200)
-  kualifikasi_pendidikan String?  @db.VarChar(100)
-  jumlah_formasi         Int      @default(1)
-  lokasi_penempatan      String?  @db.VarChar(200)
-  gaji_min               BigInt?
-  gaji_max               BigInt?
-  is_active              Boolean  @default(true)
-  created_by             Int
-  created_at             DateTime @default(now())
-  updated_at             DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  instansi_id           Int
+  nama_jabatan          String   @db.VarChar(200)
+  tingkat_pendidikan_id Int?
+  jurusan_id            Int?
+  jumlah_formasi        Int      @default(1)
+  provinsi_kode         String?  @db.VarChar(10)
+  kota_kode             String?  @db.VarChar(10)
+  gaji_min              BigInt?
+  gaji_max              BigInt?
+  is_active             Boolean  @default(true)
+  created_by            Int
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
 
-  instansi Instansi      @relation(fields: [instansi_id], references: [id], onDelete: Cascade)
-  admin    Admin         @relation(fields: [created_by], references: [id])
-  biodata  BiodataUser[]
+  instansi           Instansi           @relation(fields: [instansi_id], references: [id], onDelete: Cascade)
+  tingkat_pendidikan TingkatPendidikan? @relation(fields: [tingkat_pendidikan_id], references: [id])
+  jurusan            Jurusan?           @relation(fields: [jurusan_id], references: [id])
+  provinsi           Provinsi?          @relation(fields: [provinsi_kode], references: [kode])
+  kota               Kota?              @relation(fields: [kota_kode], references: [kode])
+  admin              Admin              @relation(fields: [created_by], references: [id])
+  biodata            BiodataUser[]
 
   @@index([instansi_id])
   @@index([nama_jabatan])
@@ -591,8 +614,8 @@ model BiodataUser {
   tanggal_lahir         DateTime?     @db.Date
   jenis_kelamin         JenisKelamin?
   alamat                String?       @db.Text
-  provinsi              String?       @db.VarChar(100)
-  kota                  String?       @db.VarChar(100)
+  provinsi_kode         String?       @db.VarChar(10)
+  kota_kode             String?       @db.VarChar(10)
   tingkat_pendidikan_id Int?
   jurusan_id            Int?
   nama_universitas      String?       @db.VarChar(200)
@@ -601,6 +624,9 @@ model BiodataUser {
   formasi_id            Int?
   created_at            DateTime      @default(now())
   updated_at            DateTime      @updatedAt
+
+  provinsi           Provinsi?          @relation(fields: [provinsi_kode], references: [kode])
+  kota               Kota?              @relation(fields: [kota_kode], references: [kode])
 
   user               User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
   tingkat_pendidikan TingkatPendidikan? @relation(fields: [tingkat_pendidikan_id], references: [id])
@@ -611,6 +637,8 @@ model BiodataUser {
   @@index([instansi_id, formasi_id])
   @@index([tingkat_pendidikan_id])
   @@index([jurusan_id])
+  @@index([provinsi_kode])
+  @@index([kota_kode])
   @@map("biodata_user")
 }
 
@@ -637,4 +665,29 @@ model LaporanSoal {
   @@index([user_id])
   @@index([status])
   @@map("laporan_soal")
+}
+
+// 24. provinsi
+model Provinsi {
+  kode String @id @db.VarChar(10)
+  nama String @db.VarChar(100)
+
+  kota    Kota[]
+  formasi Formasi[]
+  biodata BiodataUser[]
+
+  @@map("provinsi")
+}
+
+// 25. kota
+model Kota {
+  kode          String @id @db.VarChar(10)
+  provinsi_kode String @db.VarChar(10)
+  nama          String @db.VarChar(100)
+
+  provinsi Provinsi  @relation(fields: [provinsi_kode], references: [kode], onDelete: Cascade)
+  formasi  Formasi[]
+  biodata  BiodataUser[]
+
+  @@map("kota")
 }

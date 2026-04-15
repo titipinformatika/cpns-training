@@ -5,194 +5,135 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting seed...');
+  console.log('🌱 Starting comprehensive seed...');
 
-  // === 1. Kategori Soal ===
+  // 1. Kategori & Jenis Soal
   const kategoriData = [
-    { kode: 'TIU', nama: 'Tes Intelegensia Umum', deskripsi: 'Mengukur kemampuan verbal, numerik, dan figural.', passing_grade: 80 },
-    { kode: 'TWK', nama: 'Tes Wawasan Kebangsaan', deskripsi: 'Mengukur wawasan kebangsaan, integritas, dan bela negara.', passing_grade: 75 },
-    { kode: 'TKP', nama: 'Tes Karakteristik Pribadi', deskripsi: 'Mengukur karakteristik pribadi dalam pelayanan publik.', passing_grade: 166 }, // Updated PG for TKP
+    { kode: 'TIU', nama: 'Tes Intelegensia Umum', deskripsi: 'Analogi, Silogisme, Numerik, Figural', passing_grade: 80 },
+    { kode: 'TWK', nama: 'Tes Wawasan Kebangsaan', deskripsi: 'Pancasila, UUD 1945, Bhinneka Tunggal Ika', passing_grade: 75 },
+    { kode: 'TKP', nama: 'Tes Karakteristik Pribadi', deskripsi: 'Pelayanan Publik, Jejaring Kerja, TIK', passing_grade: 166 },
   ];
 
-  for (const data of kategoriData) {
+  for (const k of kategoriData) {
     await prisma.kategoriSoal.upsert({
-      where: { kode: data.kode },
-      update: data,
-      create: data,
+      where: { kode: k.kode },
+      update: k,
+      create: k,
     });
   }
-  console.log('  ✅ Kategori soal seeded');
 
-  const kategoriTIU = await prisma.kategoriSoal.findUnique({ where: { kode: 'TIU' } });
-  const kategoriTWK = await prisma.kategoriSoal.findUnique({ where: { kode: 'TWK' } });
-  const kategoriTKP = await prisma.kategoriSoal.findUnique({ where: { kode: 'TKP' } });
+  const tius = await prisma.kategoriSoal.findUnique({ where: { kode: 'TIU' } });
+  const twks = await prisma.kategoriSoal.findUnique({ where: { kode: 'TWK' } });
+  const tkps = await prisma.kategoriSoal.findUnique({ where: { kode: 'TKP' } });
 
-  if (!kategoriTIU || !kategoriTWK || !kategoriTKP) throw new Error('Kategori missing');
-
-  // === 2. Jenis Soal ===
-  const jenisData = [
-    { kategori_soal_id: kategoriTIU.id, nama: 'Verbal' },
-    { kategori_soal_id: kategoriTIU.id, nama: 'Numerik' },
-    { kategori_soal_id: kategoriTWK.id, nama: 'Nasionalisme' },
-    { kategori_soal_id: kategoriTWK.id, nama: 'Integritas' },
-    { kategori_soal_id: kategoriTKP.id, nama: 'Pelayanan Publik' },
+  const jenisSoals = [
+    { kategori_soal_id: tius!.id, nama: 'Analogi' },
+    { kategori_soal_id: tius!.id, nama: 'Silogisme' },
+    { kategori_soal_id: tius!.id, nama: 'Analitis' },
+    { kategori_soal_id: tius!.id, nama: 'Berhitung' },
+    { kategori_soal_id: twks!.id, nama: 'Nasionalisme' },
+    { kategori_soal_id: twks!.id, nama: 'Integritas' },
+    { kategori_soal_id: twks!.id, nama: 'Bela Negara' },
+    { kategori_soal_id: tkps!.id, nama: 'Pelayanan Publik' },
+    { kategori_soal_id: tkps!.id, nama: 'Jejaring Kerja' },
+    { kategori_soal_id: tkps!.id, nama: 'Sosial Budaya' },
   ];
 
-  for (const data of jenisData) {
+  for (const j of jenisSoals) {
     await prisma.jenisSoal.upsert({
-      where: { kategori_soal_id_nama: { kategori_soal_id: data.kategori_soal_id, nama: data.nama } },
+      where: { kategori_soal_id_nama: { kategori_soal_id: j.kategori_soal_id, nama: j.nama } },
       update: {},
-      create: data,
+      create: j
     });
   }
-  console.log('  ✅ Jenis soal seeded');
 
-  // === 3. Admin Default ===
-  const hashedPassword = await bcrypt.hash('admin123', 10);
-  const admin = await prisma.admin.upsert({
-    where: { email: 'admin@cpns.com' },
-    update: {},
-    create: {
-      nama: 'Super Admin',
-      email: 'admin@cpns.com',
-      password: hashedPassword,
-      role: 'SUPER_ADMIN',
-    },
-  });
-  console.log('  ✅ Admin default seeded');
+  // 2. Pendidikan & Jurusan
+  const eduLevels = [
+    { nama: 'SMA/Sederajat', urutan: 1 },
+    { nama: 'DIII', urutan: 2 },
+    { nama: 'DIV/S1', urutan: 3 },
+    { nama: 'S2', urutan: 4 },
+  ];
 
-  // === 4. Master Data (Pendidikan, Jurusan, Instansi) ===
-  const pend = await prisma.tingkatPendidikan.upsert({
-    where: { nama: 'S1' },
-    update: {},
-    create: { nama: 'S1', urutan: 4 }
-  });
+  for (const e of eduLevels) {
+    await prisma.tingkatPendidikan.upsert({
+      where: { nama: e.nama },
+      update: { urutan: e.urutan },
+      create: e
+    });
+  }
 
-  const jur = await prisma.jurusan.upsert({
-    where: { id: 1 }, // Simplistic id-based for jur in seed
-    update: {},
-    create: { nama: 'Teknik Informatika', rumpun: 'Sains' }
-  });
+  const s1 = await prisma.tingkatPendidikan.findUnique({ where: { nama: 'DIV/S1' } });
+  const sma = await prisma.tingkatPendidikan.findUnique({ where: { nama: 'SMA/Sederajat' } });
 
-  const ins = await prisma.instansi.create({
-    data: {
-      nama: 'Kementerian Hukum dan Hak Asasi Manusia',
-      singkatan: 'KEMENKUMHAM',
-      jenis: 'KEMENTERIAN',
-      created_by: admin.id
-    }
-  });
+  const jurusans = [
+    { tingkat_pendidikan_id: s1!.id, nama: 'Informatika / Ilmu Komputer / Sistem Informasi' },
+    { tingkat_pendidikan_id: s1!.id, nama: 'Hukum' },
+    { tingkat_pendidikan_id: s1!.id, nama: 'Akuntansi / Ekonomi' },
+    { tingkat_pendidikan_id: s1!.id, nama: 'Pendidikan Guru (PGSD)' },
+    { tingkat_pendidikan_id: sma!.id, nama: 'Semua Jurusan (SMA/MA/SMK)' },
+  ];
 
-  await prisma.formasi.create({
-    data: {
-      instansi_id: ins.id,
-      nama_jabatan: 'Penjaga Tahanan',
-      created_by: admin.id
-    }
-  });
-  console.log('  ✅ Master data seeded (Pendidikan, Instansi, Formasi)');
+  for (const jr of jurusans) {
+    await prisma.jurusan.create({ data: jr });
+  }
 
-  // === 5. Simulasi Data (Bank Soal, Soal, Ujian) ===
-  const bank = await prisma.bankSoal.create({
-    data: {
-      nama: 'Bank Soal Utama 2024',
-      deskripsi: 'Kumpulan soal CPNS TERUPDATE',
-      created_by: admin.id
-    }
-  });
+  // 3. Admin & Instansi
+  let admin = await prisma.admin.findFirst({ where: { role: 'SUPER_ADMIN' } });
+  
+  if (!admin) {
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    admin = await prisma.admin.create({
+      data: {
+        nama: 'Super Admin',
+        email: 'admin@titipinformatika.com',
+        password: hashedPassword,
+        role: 'SUPER_ADMIN',
+      }
+    });
+    console.log('✅ Default Super Admin created (admin123)');
+  }
+  
+  const instansiList = [
+    { nama: 'Kementerian Hukum dan Hak Asasi Manusia', singkatan: 'KEMENKUMHAM', jenis: 'KEMENTERIAN' },
+    { nama: 'Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi', singkatan: 'KEMENDIKBUDRISTEK', jenis: 'KEMENTERIAN' },
+    { nama: 'Kejaksaan Agung Republik Indonesia', singkatan: 'KEJAKSAAN', jenis: 'LEMBAGA_NON_KEMENTERIAN' },
+    { nama: 'Pemerintah Provinsi Jawa Barat', singkatan: 'PEMPROV JABAR', jenis: 'PEMDA_PROVINSI' },
+    { nama: 'Pemerintah Kota Bandung', singkatan: 'PEMKOT BANDUNG', jenis: 'PEMDA_KAB_KOTA' },
+  ];
 
-  const jenisVerbal = await prisma.jenisSoal.findFirst({ where: { nama: 'Verbal' } });
-  const jenisNasional = await prisma.jenisSoal.findFirst({ where: { nama: 'Nasionalisme' } });
-  const jenisLayanan = await prisma.jenisSoal.findFirst({ where: { nama: 'Pelayanan Publik' } });
+  for (const ins of instansiList) {
+    await prisma.instansi.create({
+      data: { ...ins, created_by: admin!.id }
+    });
+  }
 
-  // Create Sample Soal
-  const soal1 = await prisma.soal.create({
-    data: {
-      bank_soal_id: bank.id,
-      kategori_soal_id: kategoriTIU.id,
-      jenis_soal_id: jenisVerbal!.id,
-      level: 'MUDAH',
-      pertanyaan: 'Sinonim dari kata "Egois" adalah...',
-      opsi_a: 'Individualis', opsi_b: 'Dermawan', opsi_c: 'Sabar', opsi_d: 'Rajin', opsi_e: 'Marah',
-      jawaban_benar: 'A',
-      pembahasan: 'Egois memiliki makna mementingkan diri sendiri atau individualis.',
-      created_by_admin: admin.id
-    }
-  });
+  // 4. Formasi (Sample)
+  const instansiJabar = await prisma.instansi.findFirst({ where: { singkatan: 'PEMPROV JABAR' } });
+  const jurHukum = await prisma.jurusan.findFirst({ where: { nama: { contains: 'Hukum' } } });
+  const provJabar = await prisma.provinsi.findFirst({ where: { nama: { contains: 'JAWA BARAT' } } });
+  const kotaBandung = await prisma.kota.findFirst({ where: { nama: { contains: 'BANDUNG' } } });
 
-  const soal2 = await prisma.soal.create({
-    data: {
-      bank_soal_id: bank.id,
-      kategori_soal_id: kategoriTWK.id,
-      jenis_soal_id: jenisNasional!.id,
-      level: 'SEDANG',
-      pertanyaan: 'Pancasila sebagai ideologi terbuka mengandung nilai dasar yang bersifat...',
-      opsi_a: 'Berubah-ubah', opsi_b: 'Tetap', opsi_c: 'Kaku', opsi_d: 'Modern', opsi_e: 'Barat',
-      jawaban_benar: 'B',
-      pembahasan: 'Nilai dasar Pancasila bersifat tetap dan tidak berubah.',
-      created_by_admin: admin.id
-    }
-  });
+  if (instansiJabar && s1 && jurHukum && provJabar && kotaBandung && admin) {
+    await prisma.formasi.create({
+      data: {
+        instansi_id: instansiJabar.id,
+        nama_jabatan: 'Analis Hukum Ahli Pertama',
+        tingkat_pendidikan_id: s1.id,
+        jurusan_id: jurHukum.id,
+        jumlah_formasi: 5,
+        provinsi_kode: provJabar.kode,
+        kota_kode: kotaBandung.kode,
+        created_by: admin.id,
+        gaji_min: BigInt(4500000),
+        gaji_max: BigInt(7500000)
+      }
+    });
+  }
 
-  const soal3 = await prisma.soal.create({
-    data: {
-      bank_soal_id: bank.id,
-      kategori_soal_id: kategoriTKP.id,
-      jenis_soal_id: jenisLayanan!.id,
-      level: 'SULIT',
-      pertanyaan: 'Jika ada pelanggan yang marah karena pelayanan lambat, sikap Anda adalah...',
-      opsi_a: 'Membalas marah', opsi_b: 'Diam saja', opsi_c: 'Meminta maaf dan melayani segera', opsi_d: 'Pura-pura tidak tahu', opsi_e: 'Lapor atasan',
-      jawaban_benar: 'C',
-      pembahasan: 'Pelayanan publik yang baik mengedepankan empati dan solusi cepat.',
-      created_by_admin: admin.id
-    }
-  });
-
-  // Create Ujian
-  const ujian1 = await prisma.ujian.create({
-    data: {
-      nama: 'Try Out Nasional CPNS 2024 - Batch 1',
-      deskripsi: 'Simulasi lengkap TIU, TWK, TKP dengan passing grade resmi.',
-      durasi_menit: 120,
-      bank_soal_id: bank.id,
-      tipe: 'TRYOUT',
-      peruntukan: 'ALL',
-      created_by: admin.id
-    }
-  });
-
-  const ujian2 = await prisma.ujian.create({
-    data: {
-      nama: 'Latihan TIU Dasar',
-      deskripsi: 'Latihan khusus materi verbal dan numerik untuk pemula.',
-      durasi_menit: 30,
-      bank_soal_id: bank.id,
-      tipe: 'LATIHAN',
-      peruntukan: 'FREE',
-      created_by: admin.id
-    }
-  });
-
-  // Link Soal to Ujian
-  await prisma.ujianSoal.createMany({
-    data: [
-      { ujian_id: ujian1.id, soal_id: soal1.id, nomor_urut: 1 },
-      { ujian_id: ujian1.id, soal_id: soal2.id, nomor_urut: 2 },
-      { ujian_id: ujian1.id, soal_id: soal3.id, nomor_urut: 3 },
-      { ujian_id: ujian2.id, soal_id: soal1.id, nomor_urut: 1 },
-    ]
-  });
-
-  // Special Skor TKP for soal3 (optional in schema but good for TKP logic)
-  await prisma.ujianSoalSkorTkp.create({
-    data: {
-      ujian_soal_id: (await prisma.ujianSoal.findFirst({ where: { ujian_id: ujian1.id, nomor_urut: 3 } }))!.id,
-      skor_a: 1, skor_b: 2, skor_c: 5, skor_d: 3, skor_e: 4
-    }
-  });
-
-  console.log('  ✅ Ujian & Soal seeded (2 Ujian, 3 Soal)');
-  console.log('\n🎉 Seed completed successfully!');
+  console.log('✅ Seeding completed!');
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+main()
+  .catch(e => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

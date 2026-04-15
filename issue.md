@@ -1,569 +1,699 @@
-# 🔍 AUDIT KUALITAS KODE & KEAMANAN BACKEND — CPNS TRAINING
+# Perbaikan Halaman Simulasi Ujian Menjadi Tampilan CAT Modern
 
-Hasil audit menyeluruh terhadap seluruh kode backend yang telah selesai (Fase 1-8).
-Dokumen ini berisi temuan, saran perbaikan, dan penambahan fitur yang siap dikerjakan oleh programmer junior.
+Issue ini dibuat agar AI asisten developer (AI murah) atau programmer pemula dapat mengimplementasikan tampilan baru pada Simulasi CAT. 
 
----
+> **Instruksi untuk AI / Developer:**
+> Tugas utama Anda adalah **MENGGANTI KESELURUHAN ISI FILE** `frontend-web/src/pages/ujian/SimulasiUjianPage.tsx` dengan **Kode Implementasi Penuh** yang ada di bagian bawah *issue* ini. Jangan merombak sepotong-sepotong, cukup *copy* semua kode di bawah dan *paste* ke file asli.
 
-## DAFTAR ISI
-
-1. [🔴 KEAMANAN (SECURITY)](#-keamanan-security)
-2. [🟡 KUALITAS KODE (CODE QUALITY)](#-kualitas-kode-code-quality)
-3. [🟢 PENAMBAHAN FITUR (FEATURE ENHANCEMENTS)](#-penambahan-fitur-feature-enhancements)
-4. [🔵 INFRASTRUKTUR & DEVOPS](#-infrastruktur--devops)
-
----
-
-## 🔴 KEAMANAN (SECURITY)
-
-### SEC-01: Tidak Ada Rate Limiting ← KRITIS
-**File:** `backend/src/app.ts`
-**Masalah:** Endpoint login, register, dan refresh-token tidak memiliki rate limiter. Penyerang bisa melakukan brute-force password tanpa hambatan.
-**Dampak:** Serangan Brute Force, Denial of Service (DoS).
-
-**Solusi:**
-```bash
-npm install express-rate-limit
-```
-```typescript
-// backend/src/middlewares/rateLimiter.middleware.ts
-import rateLimit from 'express-rate-limit';
-
-// Rate limiter ketat untuk auth (15 request per 15 menit)
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 15,
-  message: { success: false, message: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Rate limiter umum untuk semua API (100 request per menit)
-export const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 100,
-  message: { success: false, message: 'Terlalu banyak request. Coba lagi nanti.' },
-});
-```
-**Cara Pasang:**
-```typescript
-// app.ts
-app.use('/api', apiLimiter);
-
-// auth.routes.ts
-router.post('/login', authLimiter, validate(loginUserSchema), login);
-router.post('/register', authLimiter, validate(registerUserSchema), register);
-```
-
-- [ ] Install `express-rate-limit`
-- [ ] Buat file `rateLimiter.middleware.ts`
-- [ ] Pasang `authLimiter` di route login & register (user DAN admin)
-- [ ] Pasang `apiLimiter` di `app.ts` secara global
-- [ ] Buat unit test untuk memastikan rate limiter aktif
+## Rincian Perubahan yang Ada di Kode Ini:
+1. **Penggabungan State Lama & Baru**: Mempertahankan `examData`, `sisaWaktu`, `heartbeatInterval`, dan logika API `ujianApi.jawab()` / `selesai()`.
+2. **Perubahan Mode Tampilan Navigasi**: Beralih dari "soal-satu-per-satu" (dengan `currentIndex`) ke tampilan **"Long Scroll"** yang memuat seluruh soal sekaligus, dipecah berdasar subkategori (TWK, TIU, TKP).
+3. **Scroll Spy / Tracking**: Memasang tracking scroll pada Ref container utama (`mainRef`) agar Navigasi di sidebar kiri dapat menyala (highlight) sesuai posisi soal yang sedang dibaca di layar.
+4. **Palet Warna Kategori (CATEGORY_CONFIG)**: Menanamkan mapping styling statik (Tailwind classes) untuk membedakan mood antar kategori tes.
 
 ---
 
-### SEC-02: JWT Secret Terlalu Lemah ← KRITIS
-**File:** `backend/.env`
-**Masalah:** `JWT_SECRET=cpns-training-secret-key-2026` — ini terlalu mudah ditebak. Siapapun yang membaca kode sumber bisa membuat token palsu.
-**Dampak:** Pencurian identitas, akses tidak sah ke semua akun.
+## Kode Implementasi Penuh
 
-**Solusi:**
-```bash
-# Generate secret acak yang kuat (jalankan di terminal):
-node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-```
-Kemudian ganti di `.env`:
-```
-JWT_SECRET=<hasil_dari_command_di_atas>
-```
+Hapus semua isi file `frontend-web/src/pages/ujian/SimulasiUjianPage.tsx` Anda saat ini, lalu masukkan (*copy-paste*) kode secara utuh berikut:
 
-- [ ] Generate JWT_SECRET baru minimal 64 karakter random
-- [ ] Pastikan `.env` sudah ada di `.gitignore` (✅ sudah di-gitignore)
-- [ ] Buat file `.env.example` sebagai template tanpa value sensitif
+```tsx
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { ujianApi } from '../../api/ujian';
+import type { MulaiUjianResponse, SoalSimulasi } from '../../types';
+import { 
+  Flag,
+  Clock,
+  BookOpen,
+  AlertCircle,
+  CheckCircle2,
+  LogOut,
+  Menu,
+  X,
+  ChevronUp,
+  Loader2
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
----
+const CATEGORY_CONFIG = {
+  TWK: {
+    fullLabel: "Tes Wawasan Kebangsaan",
+    gradient: "from-violet-600 to-indigo-600",
+    headerBg: "bg-gradient-to-r from-violet-600 to-indigo-600",
+    lightBg: "bg-violet-50",
+    border: "border-violet-200",
+    badge: "bg-violet-100 text-violet-700",
+    dot: "bg-violet-500",
+    selectedBorder: "border-violet-500 bg-violet-50",
+    selectedKey: "bg-violet-600 text-white",
+    check: "text-violet-500",
+    navActive: "bg-violet-600 text-white",
+    navBg: "bg-violet-50",
+    navText: "text-violet-700",
+    navHeader: "bg-violet-600",
+  },
+  TIU: {
+    fullLabel: "Tes Intelegensi Umum",
+    gradient: "from-cyan-600 to-teal-600",
+    headerBg: "bg-gradient-to-r from-cyan-600 to-teal-600",
+    lightBg: "bg-cyan-50",
+    border: "border-cyan-200",
+    badge: "bg-cyan-100 text-cyan-700",
+    dot: "bg-cyan-500",
+    selectedBorder: "border-cyan-500 bg-cyan-50",
+    selectedKey: "bg-cyan-600 text-white",
+    check: "text-cyan-500",
+    navActive: "bg-cyan-600 text-white",
+    navBg: "bg-cyan-50",
+    navText: "text-cyan-700",
+    navHeader: "bg-cyan-600",
+  },
+  TKP: {
+    fullLabel: "Tes Karakteristik Pribadi",
+    gradient: "from-amber-500 to-orange-500",
+    headerBg: "bg-gradient-to-r from-amber-500 to-orange-500",
+    lightBg: "bg-amber-50",
+    border: "border-amber-200",
+    badge: "bg-amber-100 text-amber-700",
+    dot: "bg-amber-500",
+    selectedBorder: "border-amber-500 bg-amber-50",
+    selectedKey: "bg-amber-500 text-white",
+    check: "text-amber-500",
+    navActive: "bg-amber-500 text-white",
+    navBg: "bg-amber-50",
+    navText: "text-amber-700",
+    navHeader: "bg-amber-500",
+  },
+} as const;
 
-### SEC-03: Refresh Token Menggunakan Secret yang Sama ← SEDANG
-**File:** `backend/src/services/auth.service.ts` (baris 47-51)
-**Masalah:** `generateRefreshToken` menggunakan `JWT_SECRET` yang sama dengan `generateAccessToken`. Jika access token dicuri, penyerang bisa menukarnya sebagai refresh token.
+export default function SimulasiUjianPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  // Core Data
+  const [examData, setExamData] = useState<MulaiUjianResponse | null>(null);
+  const [soalList, setSoalList] = useState<SoalSimulasi[]>([]);
+  const [answers, setAnswers] = useState<Map<number, string>>(new Map());
+  const [raguList, setRaguList] = useState<Set<number>>(new Set());
+  const [sisaWaktu, setSisaWaktu] = useState(0);
+  const maxWaktu = useRef(6000); // For progress bar fallback
+  
+  // UI State
+  const [isSubmitLoading, setIsSubmitLoading] = useState(false);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
+  const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  
+  // Refs
+  const lastSavedAnswer = useRef<Map<number, string>>(new Map());
+  const heartbeatInterval = useRef<any>(null);
+  const timerInterval = useRef<any>(null);
+  const questionRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const mainRef = useRef<HTMLDivElement>(null);
 
-**Solusi:**
-Tambahkan environment variable baru:
-```
-JWT_REFRESH_SECRET=<secret_berbeda>
-```
-```typescript
-// auth.service.ts
-export function generateRefreshToken(payload: JwtPayload): string {
-  return jwt.sign(payload as any, env.JWT_REFRESH_SECRET as string, {
-    expiresIn: env.JWT_REFRESH_EXPIRY as any,
-  });
-}
-```
+  // Derived Categories
+  const categoriesPresent = useMemo(() => {
+    return Array.from(new Set(soalList.map(s => s.kategori_soal.kode)));
+  }, [soalList]);
 
-- [ ] Tambahkan `JWT_REFRESH_SECRET` di `env.ts` schema dan `.env`
-- [ ] Update `generateRefreshToken` agar menggunakan secret terpisah
-- [ ] Update `refreshToken` dan `refreshAdminToken` controller untuk menggunakan secret terpisah saat verifikasi
-
----
-
-### SEC-04: Tidak Ada Sanitasi Input HTML/XSS ← SEDANG
-**File:** Semua controller yang menerima input teks (pertanyaan soal, deskripsi, pembahasan, review_note).
-**Masalah:** Teks dari user langsung disimpan ke database tanpa sanitasi. Jika ditampilkan di frontend tanpa escape, bisa terjadi Stored XSS.
-**Dampak:** Serangan Cross-Site Scripting (XSS).
-
-**Solusi:**
-```bash
-npm install xss
-```
-```typescript
-// backend/src/utils/sanitize.ts
-import xss from 'xss';
-
-export function sanitizeHtml(input: string): string {
-  return xss(input);
-}
-
-export function sanitizeObject<T extends Record<string, any>>(obj: T, fields: string[]): T {
-  const result = { ...obj };
-  for (const field of fields) {
-    if (typeof result[field] === 'string') {
-      (result as any)[field] = sanitizeHtml(result[field]);
+  // Load Data
+  useEffect(() => {
+    const rawData = sessionStorage.getItem('simulasi_data');
+    if (!rawData) {
+      toast.error('Data simulasi tidak ditemukan');
+      navigate('/ujian');
+      return;
     }
-  }
-  return result;
-}
-```
-**Cara Pakai:**
-```typescript
-// Di controller sebelum simpan ke DB:
-const cleanBody = sanitizeObject(req.body, ['pertanyaan', 'opsi_a', 'opsi_b', ...]);
-```
 
-- [ ] Install `xss`
-- [ ] Buat utility `sanitize.ts`
-- [ ] Terapkan di `createSoal`, `kirimKontribusi`, `kirimLaporan`, dan `upsertBiodata`
-- [ ] Buat unit test sanitasi
+    try {
+      const data: MulaiUjianResponse = JSON.parse(rawData);
+      setExamData(data);
+      setSoalList(data.soal_list);
+      setSisaWaktu(data.sisa_waktu_detik);
+      maxWaktu.current = data.sisa_waktu_detik > 6000 ? data.sisa_waktu_detik : Math.max(data.sisa_waktu_detik, 6000);
+      
+      if (data.soal_list.length > 0) {
+        setActiveQuestionId(data.soal_list[0].ujian_soal_id);
+      }
+      
+      const backupAnswers = sessionStorage.getItem(`answers_${data.hasil_ujian_id}`);
+      if (backupAnswers) {
+        setAnswers(new Map(JSON.parse(backupAnswers)));
+        lastSavedAnswer.current = new Map(JSON.parse(backupAnswers));
+      }
 
----
-
-### SEC-05: Upload File Hanya Memeriksa Ekstensi, Tidak MIME Type ← SEDANG
-**File:** `backend/src/utils/upload.ts` (baris 34-41)
-**Masalah:** Filter hanya berdasarkan ekstensi `.jpg/.jpeg`. File berbahaya bisa diupload dengan mengganti ekstensi.
-
-**Solusi:**
-```typescript
-const fileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
-  const ext = path.extname(file.originalname).toLowerCase();
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
-  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-
-  if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Hanya file gambar (jpg, png, webp) yang diizinkan'));
-  }
-};
-```
-
-- [ ] Tambahkan validasi `file.mimetype` di samping ekstensi
-- [ ] Perluas format gambar yang diizinkan (tambahkan `.png` dan `.webp`)
-- [ ] Update `ALLOWED_EXTENSIONS` di `constants.ts`
-
----
-
-### SEC-06: Parameter `id` di Admin Delete Tidak Divalidasi ← RENDAH
-**File:** `admin-master.controller.ts`, `admin-soal.controller.ts`
-**Masalah:** `Number(id)` bisa menghasilkan `NaN` jika input bukan angka, yang menyebabkan error Prisma yang tidak terkontrol.
-
-**Solusi:**
-Gunakan `validateParams` middleware dengan Zod schema:
-```typescript
-// validators/common.validator.ts
-export const idParamSchema = z.object({
-  id: z.coerce.number().int().positive('ID harus angka positif'),
-});
-```
-```typescript
-// Di route:
-router.delete('/:id', authenticateAdmin, validateParams(idParamSchema), deleteKategori);
-```
-
-- [ ] Buat `common.validator.ts` dengan `idParamSchema`
-- [ ] Terapkan `validateParams` pada semua route yang menggunakan `:id`
-
----
-
-## 🟡 KUALITAS KODE (CODE QUALITY)
-
-### QC-01: Prisma Client Tidak Menangani Koneksi Graceful Shutdown
-**File:** `backend/src/lib/prisma.ts`
-**Masalah:** Saat server mati, koneksi database tidak ditutup dengan benar. Ini bisa menyebabkan connection leak.
-
-**Solusi:**
-```typescript
-// backend/src/lib/prisma.ts
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-});
-
-// Graceful shutdown
-process.on('beforeExit', async () => {
-  await prisma.$disconnect();
-});
-
-export default prisma;
-```
-
-- [ ] Update `prisma.ts` dengan logging kondisional dan graceful shutdown
-- [ ] Tambahkan handler `SIGINT` dan `SIGTERM` di `server.ts`
-
----
-
-### QC-02: Tidak Ada Request Logger ← PENTING
-**File:** `backend/src/app.ts`
-**Masalah:** Tidak ada logging request HTTP. Sulit untuk debugging dan monitoring di production.
-
-**Solusi:**
-```bash
-npm install morgan
-npm install -D @types/morgan
-```
-```typescript
-// app.ts
-import morgan from 'morgan';
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-```
-
-- [ ] Install `morgan` dan `@types/morgan`
-- [ ] Pasang di `app.ts` sebelum routes
-- [ ] Gunakan format `combined` untuk production, `dev` untuk development
-
----
-
-### QC-03: Fungsi `serializeFormasi` Diduplikasi ← RENDAH
-**File:** `backend/src/controllers/master.controller.ts` DAN `admin-master.controller.ts`
-**Masalah:** Fungsi helper `serializeFormasi` yang identik ada di 2 file.
-
-**Solusi:**
-Pindahkan ke `utils/serializer.ts`:
-```typescript
-// backend/src/utils/serializer.ts
-export function serializeFormasi(data: any) { ... }
-```
-
-- [ ] Buat file `utils/serializer.ts`
-- [ ] Pindahkan fungsi `serializeFormasi` ke sana
-- [ ] Import dari kedua controller
-
----
-
-### QC-04: Terlalu Banyak Penggunaan `any` ← SEDANG
-**File:** Beberapa controller, terutama `admin-master.controller.ts`, `leaderboard.controller.ts`
-**Masalah:** Type `any` mengurangi keamanan tipe TypeScript.
-
-**Daftar lokasi perbaikan:**
-| File | Baris | Konteks |
-|------|-------|---------|
-| `admin-master.controller.ts` | 7, 165 | `serializeFormasi`, `updateData` |
-| `admin-soal.controller.ts` | 19 | `getFilePath(files: any, ...)` |
-| `leaderboard.controller.ts` | 16, 50, 93, 126 | `status`, `rankings`, `where` |
-| `kontribusi-soal.controller.ts` | 60 | `where: any` |
-| `laporan-soal.controller.ts` | 58 | `where: any` |
-
-**Solusi per kasus:**
-```typescript
-// Contoh: Ganti `const where: any = {}` menjadi:
-import type { Prisma } from '@prisma/client';
-const where: Prisma.KontribusiSoalWhereInput = {};
-```
-
-- [ ] Ganti `any` pada `where` clause menjadi `Prisma.XxxWhereInput`
-- [ ] Ganti `any` pada `updateData` menjadi typed objects
-- [ ] Buat interface untuk file upload helpers
-
----
-
-### QC-05: Enum Mismatch Antara Validator dan Prisma Schema ← BUG
-**File:** `backend/src/validators/backoffice.validator.ts` (baris 36)
-**Masalah:** Validator `createPaketUjianSchema` menggunakan enum `['SIMULASI', 'LATIHAN', 'MATERI']`, tetapi Prisma schema mendefinisikan `TipeUjian` sebagai `['TRYOUT', 'LATIHAN', 'QUIZ']`. Ini akan menyebabkan error saat membuat paket ujian.
-
-**Juga:** Di `createSoalSchema` baris 17, enum level menggunakan `'HOTS'`, tapi Prisma schema mendefinisikan `'HOST'`.
-
-**Solusi:**
-```typescript
-// backoffice.validator.ts
-tipe: z.enum(['TRYOUT', 'LATIHAN', 'QUIZ']),  // ← sesuai enum TipeUjian
-level: z.enum(['MUDAH', 'SEDANG', 'SULIT', 'HOST']),  // ← sesuai enum LevelSoal
-```
-
-- [ ] Fix enum `tipe` di `createPaketUjianSchema` → `['TRYOUT', 'LATIHAN', 'QUIZ']`
-- [ ] Fix enum `level` di `createSoalSchema` → `['MUDAH', 'SEDANG', 'SULIT', 'HOST']`
-- [ ] Buat test untuk memastikan validasi sesuai enum Prisma
-
----
-
-### QC-06: Controller `ujian-engine.controller.ts` Terlalu Besar (607 Baris) ← SEDANG
-**File:** `backend/src/controllers/ujian-engine.controller.ts`
-**Masalah:** File ini menangani mulai ujian, heartbeat, simpan jawaban, DAN kalkulasi skor. Terlalu banyak tanggung jawab.
-
-**Solusi:** Refactor kalkulasi skor ke service terpisah:
-```
-controllers/ujian-engine.controller.ts  → Hanya handle request/response
-services/ujian-engine.service.ts        → Logika bisnis kalkulasi skor & statistik
-```
-
-- [ ] Buat `services/ujian-engine.service.ts`
-- [ ] Pindahkan fungsi `checkAndHandleTimeout` ke service
-- [ ] Pindahkan logika kalkulasi skor (statsKategori, statsJenis, detailLulus) ke service
-- [ ] Controller hanya memanggil service dan mengembalikan response
-
----
-
-### QC-07: Hard Delete pada Master Data Berbahaya
-**File:** `admin-master.controller.ts` — `deleteKategori`, `deleteJenis`, `deleteInstansi`, `deleteFormasi`
-**Masalah:** Menggunakan `prisma.xxx.delete()` yang akan menyebabkan `Foreign Key Constraint Error` jika sudah ada data terkait (soal, hasil ujian, dll).
-
-**Solusi:** Gunakan soft delete (sudah ada kolom `is_active` di beberapa tabel):
-```typescript
-// Ganti delete menjadi soft delete:
-export async function deleteKategori(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { id } = req.params;
-    // Cek apakah masih digunakan
-    const soalCount = await prisma.soal.count({ where: { kategori_soal_id: Number(id) } });
-    if (soalCount > 0) {
-      throw new AppError('Kategori masih digunakan oleh soal dan tidak bisa dihapus', 409);
+      const backupRagu = sessionStorage.getItem(`ragu_${data.hasil_ujian_id}`);
+      if (backupRagu) {
+        setRaguList(new Set(JSON.parse(backupRagu)));
+      }
+    } catch (err) {
+      toast.error('Format data simulasi tidak valid');
+      navigate('/ujian');
     }
-    await prisma.kategoriSoal.delete({ where: { id: Number(id) } });
-    res.json(successResponse(null, 'Kategori berhasil dihapus'));
-  } catch (error) {
-    next(error);
+  }, [navigate]);
+
+  // Timer
+  useEffect(() => {
+    if (sisaWaktu <= 0) return;
+    timerInterval.current = setInterval(() => {
+      setSisaWaktu(prev => {
+        if (prev <= 1) {
+          clearInterval(timerInterval.current);
+          handleAutoSubmit();
+          return 0;
+        }
+        if (prev === 300) toast('⚠️ Sisa waktu 5 menit!', { icon: '⏳' });
+        if (prev === 60) toast.error('⚠️ Sisa waktu 1 menit!');
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerInterval.current);
+  }, [sisaWaktu === 0]); 
+
+  // Heartbeat
+  useEffect(() => {
+    if (!examData) return;
+    heartbeatInterval.current = setInterval(async () => {
+      try {
+        const res = await ujianApi.heartbeat(examData.hasil_ujian_id);
+        const { sisa_waktu_detik, status } = res.data.data;
+        if (status === 'TIMEOUT' || status === 'SELESAI') {
+          clearInterval(heartbeatInterval.current);
+          handleAutoSubmit();
+          return;
+        }
+        setSisaWaktu(sisa_waktu_detik);
+      } catch (err) {
+        console.error('Heartbeat failed');
+      }
+    }, 30000);
+    return () => clearInterval(heartbeatInterval.current);
+  }, [examData]);
+
+  // Scroll Tracker
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el || soalList.length === 0) return;
+    const onScroll = () => {
+      setShowScrollTop(el.scrollTop > 400);
+      let closest = soalList[0].ujian_soal_id;
+      let minDist = Infinity;
+      soalList.forEach((q) => {
+        const ref = questionRefs.current[q.ujian_soal_id];
+        if (ref) {
+          const rect = ref.getBoundingClientRect();
+          const dist = Math.abs(rect.top - 120);
+          if (dist < minDist) {
+            minDist = dist;
+            closest = q.ujian_soal_id;
+          }
+        }
+      });
+      setActiveQuestionId(closest);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [soalList]);
+
+  // Prevent Navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Save Jawaban Logic
+  const saveAnswerManual = async (soalId: number, answerText: string | null, is_ragu: boolean) => {
+    if (!examData) return;
+    try {
+      await ujianApi.jawab({
+        hasil_ujian_id: examData.hasil_ujian_id,
+        ujian_soal_id: soalId,
+        jawaban: answerText,
+        is_ragu: is_ragu
+      });
+      lastSavedAnswer.current.set(soalId, answerText || '');
+    } catch (err) {
+      console.error('Failed to save answer');
+    }
+  };
+
+  const handleOptionSelect = (soalId: number, option: string) => {
+    const newAnswers = new Map(answers);
+    const currentlySelected = newAnswers.get(soalId);
+    
+    if (currentlySelected === option) {
+      newAnswers.delete(soalId);
+      saveAnswerManual(soalId, null, raguList.has(soalId));
+    } else {
+      newAnswers.set(soalId, option);
+      saveAnswerManual(soalId, option, raguList.has(soalId));
+    }
+    
+    setAnswers(newAnswers);
+    if (examData) {
+      sessionStorage.setItem(`answers_${examData.hasil_ujian_id}`, JSON.stringify(Array.from(newAnswers.entries())));
+    }
+  };
+
+  const toggleRagu = (soalId: number) => {
+    const newRagu = new Set(raguList);
+    let isRaguNow = false;
+    if (newRagu.has(soalId)) {
+      newRagu.delete(soalId);
+    } else {
+      newRagu.add(soalId);
+      isRaguNow = true;
+    }
+    setRaguList(newRagu);
+    if (examData) {
+      sessionStorage.setItem(`ragu_${examData.hasil_ujian_id}`, JSON.stringify(Array.from(newRagu)));
+    }
+    const currentAnswer = answers.get(soalId) || null;
+    saveAnswerManual(soalId, currentAnswer, isRaguNow);
+  };
+
+  const handleAutoSubmit = useCallback(async () => {
+    if (!examData || isSubmitLoading) return;
+    setIsSubmitLoading(true);
+    try {
+      const res = await ujianApi.selesai(examData.hasil_ujian_id);
+      sessionStorage.removeItem(`answers_${examData.hasil_ujian_id}`);
+      sessionStorage.removeItem(`ragu_${examData.hasil_ujian_id}`);
+      sessionStorage.setItem('hasil_ujian', JSON.stringify(res.data.data));
+      navigate(`/ujian/hasil/${examData.hasil_ujian_id}`);
+    } catch (err) {
+      toast.error('Gagal mengirim jawaban otomatis');
+    }
+  }, [examData, isSubmitLoading, navigate]);
+
+  const confirmSubmit = async () => {
+    if (!examData || isSubmitLoading) return;
+    setIsSubmitLoading(true);
+    try {
+      const res = await ujianApi.selesai(examData.hasil_ujian_id);
+      sessionStorage.removeItem(`answers_${examData.hasil_ujian_id}`);
+      sessionStorage.removeItem(`ragu_${examData.hasil_ujian_id}`);
+      sessionStorage.setItem('hasil_ujian', JSON.stringify(res.data.data));
+      navigate(`/ujian/hasil/${examData.hasil_ujian_id}`);
+    } catch (err) {
+      toast.error('Gagal menyelesaikan ujian. Silakan coba lagi.');
+      setIsSubmitLoading(false);
+      setShowSubmitModal(false);
+    }
+  };
+
+  const scrollToQuestion = (id: number) => {
+    const ref = questionRefs.current[id];
+    if (ref && mainRef.current) {
+      const top = ref.offsetTop - 16;
+      mainRef.current.scrollTo({ top, behavior: "smooth" });
+    }
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
+  const scrollTop = () => {
+    mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const formatWaktu = (detik: number) => {
+    const jam = Math.floor(detik / 3600);
+    const menit = Math.floor((detik % 3600) / 60);
+    const dtk = detik % 60;
+    return `${String(jam).padStart(2, "0")}:${String(menit).padStart(2, "0")}:${String(dtk).padStart(2, "0")}`;
+  };
+
+  const getNavStyle = (id: number, cat: string) => {
+    const cfg = CATEGORY_CONFIG[cat as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG['TWK'];
+    const isActive = id === activeQuestionId;
+    const isAnswered = answers.has(id);
+    const isFlagged = raguList.has(id);
+
+    if (isActive) return `${cfg.navActive} ring-2 ring-white/50 scale-105 shadow`;
+    if (isFlagged) return "bg-amber-400 text-white";
+    if (isAnswered) return "bg-emerald-500 text-white";
+    return "bg-slate-100 text-slate-600 hover:bg-slate-200";
+  };
+
+  if (!examData || soalList.length === 0) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+      </div>
+    );
   }
+
+  const timePercent = Math.min(100, Math.max(0, (sisaWaktu / maxWaktu.current) * 100));
+  const isTimeCritical = sisaWaktu < 600;
+  const answeredCount = answers.size;
+  const flaggedCount = raguList.size;
+  const unansweredCount = soalList.length - answeredCount;
+
+  return (
+    <div className="h-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
+      {/* ── HEADER ── */}
+      <header className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600 text-white shadow-lg flex-shrink-0 z-20">
+        <div className="flex items-center justify-between px-4 h-14">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+            >
+              {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                <BookOpen size={16} />
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-xs text-indigo-200 leading-none">Sistem Seleksi CPNS</p>
+                <p className="text-sm font-semibold leading-tight">CAT · BKN Simulasi Ujian</p>
+              </div>
+            </div>
+          </div>
+
+          <div className={`flex items-center gap-2 px-4 py-1.5 rounded-xl font-mono transition-all ${isTimeCritical ? "bg-red-500 animate-pulse shadow-lg" : "bg-white/15 backdrop-blur-sm"}`}>
+            <Clock size={15} className="text-white/80" />
+            <span className="text-base font-bold tracking-widest">{formatWaktu(sisaWaktu)}</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold uppercase">
+                {user?.nama?.substring(0,2) || 'UU'}
+              </div>
+              <div className="leading-none text-right">
+                <p className="text-xs text-indigo-200">Peserta Ujian</p>
+                <p className="text-sm font-semibold">{user?.nama || 'Anonim'}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowSubmitModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-indigo-700 text-sm rounded-lg hover:bg-indigo-50 font-semibold shadow transition-colors"
+            >
+              <LogOut size={14} className="hidden sm:block" />
+              <span>Selesai</span>
+            </button>
+          </div>
+        </div>
+        <div className="h-1 bg-white/20">
+          <div className={`h-full transition-all duration-1000 ${isTimeCritical ? "bg-red-400" : "bg-white/70"}`} style={{ width: `${timePercent}%` }} />
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* ── SIDEBAR ── */}
+        <aside className={`absolute md:relative ${sidebarOpen ? "w-64" : "w-0"} flex-shrink-0 bg-white border-r border-slate-200 overflow-hidden transition-all duration-300 z-[19] flex flex-col h-full shadow-2xl md:shadow-none`}>
+          <div className="h-full overflow-y-auto flex flex-col w-64">
+            <div className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 border-b border-slate-200 flex-shrink-0">
+              <div className="md:hidden flex items-center gap-2.5 mb-3">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 uppercase">{user?.nama?.substring(0,2) || 'UU'}</div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800 text-sm truncate">{user?.nama || 'Anonim'}</p>
+                  <p className="text-xs text-slate-400 truncate">Sesi #{examData.sesi_ujian_id}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-center">
+                <div className="bg-white rounded-xl py-2 shadow-sm border border-emerald-100">
+                  <p className="font-bold text-emerald-600">{answeredCount}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Dijawab</p>
+                </div>
+                <div className="bg-white rounded-xl py-2 shadow-sm border border-amber-100">
+                  <p className="font-bold text-amber-500">{flaggedCount}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Ragu</p>
+                </div>
+                <div className="bg-white rounded-xl py-2 shadow-sm border border-slate-100">
+                  <p className="font-bold text-slate-500">{unansweredCount}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Belum</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 p-3 space-y-4">
+              {categoriesPresent.map((catString) => {
+                const cfg = CATEGORY_CONFIG[catString as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG['TWK'];
+                const catQs = soalList.filter(q => q.kategori_soal.kode === catString);
+                const catAnswered = catQs.filter((q) => answers.has(q.ujian_soal_id)).length;
+                return (
+                  <div key={catString}>
+                    <div className={`${cfg.navHeader} rounded-xl px-3 py-2 mb-2 flex items-center justify-between`}>
+                      <div>
+                        <p className="text-white text-xs font-bold">{catString}</p>
+                        <p className="text-white/70 text-[10px] leading-tight">{cfg.fullLabel}</p>
+                      </div>
+                      <span className="bg-white/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                        {catAnswered}/{catQs.length}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {catQs.map((q) => (
+                        <button
+                          key={q.ujian_soal_id}
+                          onClick={() => scrollToQuestion(q.ujian_soal_id)}
+                          className={`w-full aspect-square rounded-lg text-xs font-semibold transition-all duration-150 ${getNavStyle(q.ujian_soal_id, catString)}`}
+                        >
+                          {q.nomor_urut}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="p-3 border-t border-slate-100 flex-shrink-0">
+              <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">Keterangan</p>
+              <div className="grid grid-cols-2 gap-y-1.5 gap-x-2">
+                {[
+                  { color: "bg-emerald-500", label: "Dijawab" },
+                  { color: "bg-amber-400", label: "Ragu-ragu" },
+                  { color: "bg-slate-200", label: "Belum" },
+                  { color: "bg-indigo-600", label: "Aktif" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-1.5">
+                    <div className={`w-3 h-3 rounded flex-shrink-0 border border-black/10 ${item.color}`} />
+                    <span className="text-[10px] text-slate-500 font-medium">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── MAIN SCROLL AREA ── */}
+        <main ref={mainRef} className="flex-1 overflow-y-auto relative w-full" onClick={() => {if(window.innerWidth < 768 && sidebarOpen) setSidebarOpen(false)}}>
+          <div className="max-w-3xl mx-auto px-4 py-5 space-y-10 pb-16">
+            {categoriesPresent.map((catString) => {
+              const cfg = CATEGORY_CONFIG[catString as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG['TWK'];
+              const catQs = soalList.filter(q => q.kategori_soal.kode === catString);
+              const catAnswered = catQs.filter((q) => answers.has(q.ujian_soal_id)).length;
+
+              return (
+                <section key={catString}>
+                  <div className={`${cfg.headerBg} rounded-2xl p-5 mb-4 flex items-center justify-between shadow-md`}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                        <span className="text-white font-black text-lg">{catString}</span>
+                      </div>
+                      <div>
+                        <p className="text-white font-bold text-lg leading-tight">{cfg.fullLabel}</p>
+                        <p className="text-white/70 text-sm hidden sm:block">{catQs.length} soal untuk bidang ini</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white/70 text-xs">Terjawab</p>
+                      <p className="text-white font-bold text-xl sm:text-2xl">{catAnswered}<span className="text-white/50 text-sm sm:text-base font-normal">/{catQs.length}</span></p>
+                      <div className="w-20 sm:w-24 h-1.5 bg-white/20 rounded-full mt-1 overflow-hidden hidden sm:block">
+                        <div className="h-full bg-white rounded-full transition-all" style={{ width: `${(catAnswered / catQs.length) * 100}%` }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {catQs.map((q) => {
+                      const isAnswered = answers.has(q.ujian_soal_id);
+                      const isFlagged = raguList.has(q.ujian_soal_id);
+                      const selectedKey = answers.get(q.ujian_soal_id);
+                      
+                      const optionsList = ['A', 'B', 'C', 'D', 'E'].map(opt => ({
+                        key: opt,
+                        text: q[`opsi_${opt.toLowerCase()}` as keyof SoalSimulasi] as string,
+                        img: q[`opsi_${opt.toLowerCase()}_gambar` as keyof SoalSimulasi] as string | null
+                      })).filter(o => o.text || o.img);
+
+                      return (
+                        <div
+                          key={q.ujian_soal_id}
+                          ref={(el) => { questionRefs.current[q.ujian_soal_id] = el; }}
+                          id={`question-${q.ujian_soal_id}`}
+                          className={`bg-white rounded-2xl shadow-sm border-2 transition-all duration-200 overflow-hidden ${
+                            activeQuestionId === q.ujian_soal_id
+                              ? `${cfg.border} shadow-md`
+                              : "border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className={`flex items-center justify-between px-4 sm:px-5 py-3 border-b ${activeQuestionId === q.ujian_soal_id ? cfg.lightBg : "bg-slate-50"} border-slate-100`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${cfg.gradient} text-white text-sm font-bold flex items-center justify-center shadow-sm flex-shrink-0`}>
+                                {q.nomor_urut}
+                              </div>
+                              <div>
+                                <span className="text-xs text-slate-400 hidden sm:inline">Soal #{q.nomor_urut} &middot; </span>
+                                <span className={`text-xs font-semibold ${cfg.navText}`}>{catString}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {isAnswered && (
+                                <span className="hidden sm:flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs font-bold px-2 py-1 rounded-full">
+                                  <CheckCircle2 size={12} /> <span className="hidden md:inline">Terjawab</span>
+                                </span>
+                              )}
+                              <button
+                                onClick={() => toggleRagu(q.ujian_soal_id)}
+                                className={`flex items-center gap-1 text-[10px] sm:text-xs font-bold px-2.5 py-1.5 rounded-full border transition-all ${
+                                  isFlagged
+                                    ? "bg-amber-50 border-amber-300 text-amber-600"
+                                    : "bg-white border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-500"
+                                }`}
+                              >
+                                <Flag size={12} className={isFlagged ? "fill-amber-400" : ""} />
+                                {isFlagged ? "Ragu-ragu" : "Tandai Ragu"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="px-4 sm:px-5 pt-4 pb-3 space-y-3">
+                            {q.pertanyaan_gambar && (
+                              <img src={`/static/${q.pertanyaan_gambar}`} alt="Gambar Soal" className="max-w-full h-auto rounded border border-slate-200" />
+                            )}
+                            <p className="text-slate-800 leading-relaxed text-sm sm:text-base font-medium whitespace-pre-wrap">{q.pertanyaan}</p>
+                          </div>
+
+                          <div className="px-4 sm:px-5 pb-5 space-y-2">
+                            {optionsList.map((opt) => {
+                              const isSelected = selectedKey === opt.key;
+                              return (
+                                <button
+                                  key={opt.key}
+                                  onClick={() => handleOptionSelect(q.ujian_soal_id, opt.key)}
+                                  className={`w-full flex items-start gap-3 px-3 sm:px-4 py-3 rounded-xl text-left border-2 transition-all duration-150 ${
+                                    isSelected
+                                      ? cfg.selectedBorder + " shadow-sm"
+                                      : "border-slate-100 bg-slate-50 hover:border-slate-300 hover:bg-white"
+                                  }`}
+                                >
+                                  <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-sm font-bold transition-all mt-0.5 ${
+                                    isSelected ? cfg.selectedKey + " shadow-sm" : "bg-white border border-slate-200 text-slate-500"
+                                  }`}>
+                                    {opt.key}
+                                  </div>
+                                  <div className={`flex-1 space-y-2 ${isSelected ? "text-slate-800" : "text-slate-600"}`}>
+                                    {opt.text && <p className="text-sm sm:text-base leading-relaxed pt-1">{opt.text}</p>}
+                                    {opt.img && <img src={`/static/${opt.img}`} className="max-h-40 rounded border border-slate-200" alt={`Opsi ${opt.key}`}/>}
+                                  </div>
+                                  {isSelected && (
+                                    <CheckCircle2 size={18} className={`flex-shrink-0 mt-1.5 ${cfg.check}`} />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+
+            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-6 md:p-8 text-center shadow-lg mt-8">
+              <h3 className="text-white text-lg md:text-xl font-bold mb-2">Selesai Mengerjakan?</h3>
+              <p className="text-indigo-100 text-sm md:text-base mb-6">
+                {unansweredCount > 0
+                  ? `Peringatan: Masih ada ${unansweredCount} soal yang belum dijawab.`
+                  : "Semua soal sudah terjawab. Silakan kumpulkan untuk melihat hasil."}
+              </p>
+              <div className="flex justify-center gap-3 flex-wrap mb-6">
+                <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-sm font-medium">
+                  <CheckCircle2 size={16} className="text-emerald-300" />
+                  <span>{answeredCount} Terjawab</span>
+                </div>
+                <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-sm font-medium">
+                  <Flag size={16} className="text-amber-300 fill-amber-300" />
+                  <span>{flaggedCount} Ragu-ragu</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSubmitModal(true)}
+                className="px-8 py-3.5 bg-white text-indigo-700 font-extrabold rounded-xl hover:bg-indigo-50 transition-colors shadow-md transform hover:scale-105 active:scale-95"
+              >
+                Kumpulkan Jawaban Sekarang
+              </button>
+            </div>
+          </div>
+
+          {showScrollTop && (
+            <button
+              onClick={scrollTop}
+              className="fixed bottom-6 right-6 w-11 h-11 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center z-30"
+            >
+              <ChevronUp size={22} />
+            </button>
+          )}
+        </main>
+      </div>
+
+      {/* ── SUBMIT MODAL ── */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm sm:max-w-md w-full p-6 sm:p-8 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 text-amber-500 mx-auto mb-4">
+              <AlertCircle size={32} />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 text-center mb-1">Akhiri Sesi Ujian?</h2>
+            <p className="text-slate-500 text-sm text-center mb-6">Anda tidak dapat mengubah jawaban setelah mengumpulkan.</p>
+
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              <div className="bg-emerald-50 rounded-2xl p-3 text-center border border-emerald-100">
+                <p className="text-xl sm:text-2xl font-black text-emerald-600">{answeredCount}</p>
+                <p className="text-[10px] sm:text-xs font-bold text-emerald-800/60 mt-0.5 uppercase tracking-wider">Dijawab</p>
+              </div>
+              <div className="bg-amber-50 rounded-2xl p-3 text-center border border-amber-100">
+                <p className="text-xl sm:text-2xl font-black text-amber-500">{flaggedCount}</p>
+                <p className="text-[10px] sm:text-xs font-bold text-amber-800/60 mt-0.5 uppercase tracking-wider">Ragu</p>
+              </div>
+              <div className={`rounded-2xl p-3 text-center border ${unansweredCount > 0 ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100"}`}>
+                <p className={`text-xl sm:text-2xl font-black ${unansweredCount > 0 ? "text-red-500" : "text-slate-500"}`}>{unansweredCount}</p>
+                <p className={`text-[10px] sm:text-xs font-bold mt-0.5 uppercase tracking-wider ${unansweredCount > 0 ? "text-red-800/60" : "text-slate-500/60"}`}>Belum</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={confirmSubmit} 
+                disabled={isSubmitLoading}
+                className="w-full py-3.5 rounded-xl bg-indigo-600 text-white font-bold transition-colors hover:bg-indigo-700 shadow-md shadow-indigo-200 disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isSubmitLoading ? <><Loader2 size={18} className="animate-spin" /> Memproses...</> : 'Ya, Kumpulkan'}
+              </button>
+              <button 
+                onClick={() => setShowSubmitModal(false)}
+                disabled={isSubmitLoading}
+                className="w-full py-3.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-bold transition-colors"
+              >
+                Batal, Kembali Cek
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 ```
-
-- [ ] Tambahkan pengecekan "masih digunakan" sebelum delete pada semua master data
-- [ ] Untuk data yang sudah ada relasi (instansi, formasi), gunakan soft delete (`is_active = false`)
-
----
-
-## 🟢 PENAMBAHAN FITUR (FEATURE ENHANCEMENTS)
-
-### FE-01: Endpoint Ganti Password User ← PRIORITAS TINGGI
-**Saat ini belum tersedia.**
-
-```typescript
-// validators/auth.validator.ts
-export const changePasswordSchema = z.object({
-  old_password: z.string().min(1, 'Password lama wajib diisi'),
-  new_password: z.string().min(6, 'Password baru minimal 6 karakter').max(100),
-});
-```
-```typescript
-// controllers/auth.controller.ts
-export async function changePassword(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { old_password, new_password } = req.body;
-    const userId = req.user!.id;
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new AppError('User tidak ditemukan', 404);
-
-    const isMatch = await comparePassword(old_password, user.password);
-    if (!isMatch) throw new AppError('Password lama tidak cocok', 401);
-
-    const hashed = await hashPassword(new_password);
-    await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
-
-    res.json(successResponse(null, 'Password berhasil diubah'));
-  } catch (error) {
-    next(error);
-  }
-}
-```
-
-- [ ] Tambahkan `changePasswordSchema` di validator
-- [ ] Tambahkan `changePassword` di controller
-- [ ] Daftarkan route `PUT /api/auth/change-password`
-- [ ] Buat unit test
-
----
-
-### FE-02: Endpoint Admin Dashboard Summary ← PRIORITAS SEDANG
-**Saat ini frontend admin tidak punya data untuk halaman dashboard.**
-
-```typescript
-// controllers/admin-dashboard.controller.ts
-export async function getDashboardSummary(req: Request, res: Response, next: NextFunction) {
-  try {
-    const [totalUser, totalSoal, totalUjian, totalLaporan, totalKontribusi] = await Promise.all([
-      prisma.user.count({ where: { is_active: true } }),
-      prisma.soal.count({ where: { is_active: true } }),
-      prisma.ujian.count({ where: { is_active: true } }),
-      prisma.laporanSoal.count({ where: { status: 'PENDING' } }),
-      prisma.kontribusiSoal.count({ where: { status: 'PENDING' } }),
-    ]);
-
-    res.json(successResponse({
-      totalUser, totalSoal, totalUjian,
-      laporanPending: totalLaporan,
-      kontribusiPending: totalKontribusi,
-    }));
-  } catch (error) {
-    next(error);
-  }
-}
-```
-
-- [ ] Buat file `admin-dashboard.controller.ts`
-- [ ] Buat route `GET /api/admin/dashboard`
-- [ ] Buat unit test
-
----
-
-### FE-03: Endpoint Upload/Ganti Avatar User ← PRIORITAS RENDAH
-**Kolom `avatar` sudah ada di tabel `users`, tapi belum ada endpoint untuk upload.**
-
-- [ ] Buat multer instance untuk upload avatar: `uploads/avatar/`
-- [ ] Buat endpoint `PUT /api/user/avatar` (form-data, field `avatar`)
-- [ ] Hapus file lama saat ganti avatar
-- [ ] Buat unit test
-
----
-
-### FE-04: Soft Delete untuk Soal (Toggle `is_active`) ← PRIORITAS SEDANG
-**File:** `admin-soal.controller.ts`
-**Saat ini `deleteSoal` menghapus permanen. Ini berbahaya karena soal mungkin sudah terlanjur dipakai dalam ujian.**
-
-- [ ] Tambahkan endpoint `PATCH /api/admin/backoffice/soal/:id/toggle-active`
-- [ ] Logika: flip `is_active` dari true ke false atau sebaliknya
-- [ ] Hapus atau nonaktifkan tombol "Hard Delete" di frontend admin
-
----
-
-### FE-05: Endpoint Search/Filter Soal di Admin
-**Saat ini `getSoalByBank` hanya filter berdasarkan `bank_soal_id`. Admin perlu search dan filter lebih lengkap.**
-
-- [ ] Tambahkan query params: `?search=`, `?kategori_id=`, `?jenis_id=`, `?level=`
-- [ ] Implementasi `contains` search pada field `pertanyaan`
-- [ ] Tambahkan paginasi
-
----
-
-### FE-06: Endpoint Hapus File yang Tidak Terpakai (Orphan Files) ← PRIORITAS RENDAH
-**Saat kontribusi di-reject, file gambar yang diupload tetap tersimpan di server.**
-
-- [ ] Buat utility/scheduler untuk membersihkan file orphan
-- [ ] Atau, hapus file saat kontribusi di-reject di `reviewKontribusi`
-
----
-
-## 🔵 INFRASTRUKTUR & DEVOPS
-
-### INF-01: Buat File `.env.example`
-**Masalah:** Developer baru tidak tahu variable environment apa saja yang diperlukan.
-
-```env
-# .env.example
-DATABASE_URL=mysql://root:password@localhost:3306/cpns_training
-PORT=3000
-JWT_SECRET=ganti_dengan_random_string_64_karakter
-JWT_REFRESH_SECRET=ganti_dengan_random_string_64_karakter_berbeda
-JWT_EXPIRY=1d
-JWT_REFRESH_EXPIRY=7d
-NODE_ENV=development
-```
-
-- [ ] Buat file `.env.example`
-- [ ] Pastikan `.env.example` TIDAK ada di `.gitignore`
-- [ ] Tambahkan instruksi di `README.md`
-
----
-
-### INF-02: Tambahkan CORS Whitelist ← SEDANG
-**File:** `backend/src/app.ts` (baris 12)
-**Masalah:** `app.use(cors())` mengizinkan request dari domain manapun. Ini tidak aman di production.
-
-**Solusi:**
-```typescript
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://cpns-training.com', 'https://admin.cpns-training.com']
-    : true, // Izinkan semua di development
-  credentials: true,
-};
-app.use(cors(corsOptions));
-```
-
-- [ ] Tambahkan `CORS_ORIGIN` di env schema
-- [ ] Konfigurasi whitelist di `app.ts`
-
----
-
-### INF-03: Tambahkan Compression Middleware ← RENDAH
-```bash
-npm install compression
-npm install -D @types/compression
-```
-```typescript
-import compression from 'compression';
-app.use(compression());
-```
-
-- [ ] Install dan pasang `compression` di `app.ts`
-
----
-
-### INF-04: Documentasi API dengan Swagger/OpenAPI ← PRIORITAS RENDAH
-**Saat ini tidak ada dokumentasi API resmi yang bisa diakses oleh frontend developer.**
-
-- [ ] Install `swagger-jsdoc` dan `swagger-ui-express`
-- [ ] Buat JSDoc annotation pada setiap route
-- [ ] Serve di `/api/docs`
-
----
-
-## RINGKASAN PRIORITAS
-
-| Prioritas | Kode | Judul | Perkiraan Waktu |
-|-----------|------|-------|-----------------|
-| 🔴 Kritis | SEC-01 | Rate Limiting | 1-2 jam |
-| 🔴 Kritis | SEC-02 | JWT Secret Lemah | 15 menit |
-| 🔴 Kritis | QC-05 | Enum Mismatch (BUG) | 30 menit |
-| 🟠 Tinggi | SEC-03 | Refresh Token Secret Terpisah | 1 jam |
-| 🟠 Tinggi | SEC-04 | Sanitasi Input XSS | 2 jam |
-| 🟠 Tinggi | FE-01 | Ganti Password | 1 jam |
-| 🟠 Tinggi | QC-02 | Request Logger | 30 menit |
-| 🟡 Sedang | SEC-05 | Validasi MIME Type Upload | 30 menit |
-| 🟡 Sedang | SEC-06 | Validasi Param ID | 1 jam |
-| 🟡 Sedang | QC-01 | Prisma Graceful Shutdown | 30 menit |
-| 🟡 Sedang | QC-04 | Kurangi `any` | 2 jam |
-| 🟡 Sedang | QC-06 | Refactor Engine ke Service | 3 jam |
-| 🟡 Sedang | QC-07 | Soft Delete Master Data | 1 jam |
-| 🟡 Sedang | FE-02 | Admin Dashboard Summary | 1 jam |
-| 🟡 Sedang | FE-04 | Soft Delete Soal | 30 menit |
-| 🟡 Sedang | FE-05 | Search/Filter Soal Admin | 1 jam |
-| 🟡 Sedang | INF-02 | CORS Whitelist | 30 menit |
-| 🟢 Rendah | QC-03 | Hapus Duplikasi `serializeFormasi` | 15 menit |
-| 🟢 Rendah | FE-03 | Upload Avatar | 1 jam |
-| 🟢 Rendah | FE-06 | Bersihkan Orphan Files | 1 jam |
-| 🟢 Rendah | INF-01 | `.env.example` | 15 menit |
-| 🟢 Rendah | INF-03 | Compression Middleware | 15 menit |
-| 🟢 Rendah | INF-04 | Swagger API Docs | 3 jam |
-
-**Estimasi Total:** ~22 jam kerja
-
----
-
-## URUTAN PENGERJAAN YANG DIREKOMENDASIKAN
-
-1. **Sprint 1 (Hari 1):** SEC-02, QC-05, INF-01, QC-03 — Quick wins dan bug fix
-2. **Sprint 2 (Hari 2):** SEC-01, QC-02, QC-01 — Keamanan dasar dan monitoring
-3. **Sprint 3 (Hari 3):** SEC-03, SEC-04, SEC-05, SEC-06 — Hardening keamanan
-4. **Sprint 4 (Hari 4):** FE-01, FE-02, FE-04, FE-05 — Fitur baru
-5. **Sprint 5 (Hari 5):** QC-04, QC-06, QC-07 — Refaktoring kode
-6. **Sprint 6 (Opsional):** INF-02, INF-03, INF-04, FE-03, FE-06 — Polish

@@ -94,10 +94,106 @@ export async function createPendidikan(req: Request, res: Response, next: NextFu
   }
 }
 
+export async function updatePendidikan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await prisma.tingkatPendidikan.update({
+      where: { id: Number(id) },
+      data: req.body,
+    });
+    res.json(successResponse(data, 'Tingkat pendidikan berhasil diperbarui'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deletePendidikan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const numId = Number(id);
+
+    // Safety check: is it being used?
+    const [jurusanCount, formasiCount, biodataCount] = await Promise.all([
+      prisma.jurusan.count({ where: { tingkat_pendidikan_id: numId } }),
+      prisma.formasi.count({ where: { tingkat_pendidikan_id: numId } }),
+      prisma.biodataUser.count({ where: { tingkat_pendidikan_id: numId } }),
+    ]);
+
+    const relations = [];
+    if (jurusanCount > 0) relations.push(`${jurusanCount} Jurusan`);
+    if (formasiCount > 0) relations.push(`${formasiCount} Formasi`);
+    if (biodataCount > 0) relations.push(`${biodataCount} Biodata User`);
+
+    if (relations.length > 0) {
+      throw new AppError(
+        `Tingkat Pendidikan tidak bisa dihapus karena masih digunakan oleh ${relations.join(', ')}`,
+        409
+      );
+    }
+
+    await prisma.tingkatPendidikan.delete({ where: { id: numId } });
+    res.json(successResponse(null, 'Tingkat pendidikan berhasil dihapus'));
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function createJurusan(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await prisma.jurusan.create({ data: req.body });
+    const data = await prisma.jurusan.create({ 
+      data: {
+        nama: req.body.nama,
+        rumpun: req.body.rumpun,
+        tingkat_pendidikan_id: req.body.tingkat_pendidikan_id ? Number(req.body.tingkat_pendidikan_id) : null
+      }
+    });
     res.status(201).json(successResponse(data, 'Jurusan berhasil dibuat'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateJurusan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await prisma.jurusan.update({
+      where: { id: Number(id) },
+      data: {
+        nama: req.body.nama,
+        rumpun: req.body.rumpun,
+        tingkat_pendidikan_id: req.body.tingkat_pendidikan_id ? Number(req.body.tingkat_pendidikan_id) : null,
+      },
+    });
+    res.json(successResponse(data, 'Jurusan berhasil diperbarui'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteJurusan(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const numId = Number(id);
+
+    // Safety check: is it being used?
+    const [formasiCount, biodataCount] = await Promise.all([
+      prisma.formasi.count({ where: { jurusan_id: numId } }),
+      prisma.biodataUser.count({ where: { jurusan_id: numId } }),
+    ]);
+
+    const relations = [];
+    if (formasiCount > 0) relations.push(`${formasiCount} Formasi`);
+    if (biodataCount > 0) relations.push(`${biodataCount} Biodata User`);
+
+    if (relations.length > 0) {
+      throw new AppError(
+        `Jurusan tidak bisa dihapus karena masih digunakan oleh ${relations.join(', ')}`,
+        409
+      );
+    }
+
+    await prisma.jurusan.delete({ where: { id: numId } });
+    res.json(successResponse(null, 'Jurusan berhasil dihapus'));
   } catch (error) {
     next(error);
   }
@@ -145,11 +241,21 @@ export async function deleteInstansi(req: Request, res: Response, next: NextFunc
 // --- Formasi ---
 export async function createFormasi(req: Request, res: Response, next: NextFunction) {
   try {
-    const { gaji_min, gaji_max, ...body } = req.body;
+    const { 
+      gaji_min, gaji_max, 
+      tingkat_pendidikan_id, jurusan_id,
+      provinsi_kode, kota_kode,
+      ...body 
+    } = req.body;
+    
     const data = await prisma.formasi.create({
       data: {
         ...body,
         created_by: req.admin!.id,
+        tingkat_pendidikan_id: tingkat_pendidikan_id ? Number(tingkat_pendidikan_id) : null,
+        jurusan_id: jurusan_id ? Number(jurusan_id) : null,
+        provinsi_kode: provinsi_kode ? String(provinsi_kode) : null,
+        kota_kode: kota_kode ? String(kota_kode) : null,
         gaji_min: gaji_min ? BigInt(gaji_min) : null,
         gaji_max: gaji_max ? BigInt(gaji_max) : null,
       },
@@ -163,9 +269,18 @@ export async function createFormasi(req: Request, res: Response, next: NextFunct
 export async function updateFormasi(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
-    const { gaji_min, gaji_max, ...body } = req.body;
+    const { 
+      gaji_min, gaji_max, 
+      tingkat_pendidikan_id, jurusan_id,
+      provinsi_kode, kota_kode,
+      ...body 
+    } = req.body;
     
     const updateData: any = { ...body };
+    if (tingkat_pendidikan_id !== undefined) updateData.tingkat_pendidikan_id = tingkat_pendidikan_id ? Number(tingkat_pendidikan_id) : null;
+    if (jurusan_id !== undefined) updateData.jurusan_id = jurusan_id ? Number(jurusan_id) : null;
+    if (provinsi_kode !== undefined) updateData.provinsi_kode = provinsi_kode ? String(provinsi_kode) : null;
+    if (kota_kode !== undefined) updateData.kota_kode = kota_kode ? String(kota_kode) : null;
     if (gaji_min !== undefined) updateData.gaji_min = gaji_min ? BigInt(gaji_min) : null;
     if (gaji_max !== undefined) updateData.gaji_max = gaji_max ? BigInt(gaji_max) : null;
 

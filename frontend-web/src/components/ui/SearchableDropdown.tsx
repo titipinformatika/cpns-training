@@ -14,6 +14,7 @@ interface DropdownProps {
   placeholder?: string;
   error?: string;
   name?: string;
+  pendidikanId?: number | null;
 }
 
 export default function SearchableDropdown({ 
@@ -21,7 +22,8 @@ export default function SearchableDropdown({
   onSelect, 
   placeholder = 'Cari...', 
   error,
-  name
+  name,
+  pendidikanId
 }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState(value?.nama || '');
@@ -48,7 +50,7 @@ export default function SearchableDropdown({
 
     setIsLoading(true);
     const timeoutId = setTimeout(() => {
-      masterApi.getJurusan(searchText)
+      masterApi.getJurusan({ search: searchText, pendidikan_id: pendidikanId || undefined })
         .then((res) => {
           setOptions(res.data.data || []);
         })
@@ -61,7 +63,7 @@ export default function SearchableDropdown({
     }, 400); // 400ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [searchText]);
+  }, [searchText, pendidikanId]);
 
   // Click outside listener
   useEffect(() => {

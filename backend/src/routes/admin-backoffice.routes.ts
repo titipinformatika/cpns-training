@@ -7,7 +7,7 @@ import {
   createSoal, getSoalByBank, updateSoal, deleteSoal, toggleActiveSoal 
 } from '../controllers/admin-soal.controller.js';
 import { 
-  createPaketUjian, getPaketUjian, updatePaketUjian, 
+  createPaketUjian, getPaketUjian, updatePaketUjian, deletePaketUjian,
   addSoalToPaket, removeSoalFromPaket, updateSoalOrder, getSoalInPaket 
 } from '../controllers/admin-paket-ujian.controller.js';
 import { validate, validateParams } from '../middlewares/validate.middleware.js';
@@ -55,6 +55,7 @@ router.delete('/soal/:id', validateParams(idParamSchema), deleteSoal);
 router.post('/paket-ujian', validate(createPaketUjianSchema), createPaketUjian);
 router.get('/paket-ujian', getPaketUjian);
 router.patch('/paket-ujian/:id', validateParams(idParamSchema), validate(updatePaketUjianSchema), updatePaketUjian);
+router.delete('/paket-ujian/:id', validateParams(idParamSchema), deletePaketUjian);
 
 // === 4. Mapping Soal ke Paket ===
 router.post('/paket-ujian/:ujian_id/soal', validateParams(z.object({ ujian_id: z.coerce.number() })), validate(addSoalToPaketSchema), addSoalToPaket);

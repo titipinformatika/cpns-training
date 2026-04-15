@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { 
   createKategori, updateKategori, deleteKategori,
   createJenis, updateJenis, deleteJenis,
-  createPendidikan, createJurusan,
+  createPendidikan, updatePendidikan, deletePendidikan,
+  createJurusan, updateJurusan, deleteJurusan,
   createInstansi, updateInstansi, deleteInstansi,
   createFormasi, updateFormasi, deleteFormasi
 } from '../controllers/admin-master.controller.js';
@@ -11,7 +12,8 @@ import { authenticateAdmin } from '../middlewares/auth.middleware.js';
 import { 
   createKategoriSchema, updateKategoriSchema,
   createJenisSoalSchema, updateJenisSoalSchema,
-  createPendidikanSchema, createJurusanSchema,
+  createPendidikanSchema, updatePendidikanSchema,
+  createJurusanSchema, updateJurusanSchema,
   createInstansiSchema, updateInstansiSchema,
   createFormasiSchema, updateFormasiSchema,
   idParamSchema
@@ -34,7 +36,12 @@ router.delete('/jenis/:id', validateParams(idParamSchema), deleteJenis);
 
 // --- Pendidikan & Jurusan ---
 router.post('/pendidikan', validate(createPendidikanSchema), createPendidikan);
+router.patch('/pendidikan/:id', validateParams(idParamSchema), validate(updatePendidikanSchema), updatePendidikan);
+router.delete('/pendidikan/:id', validateParams(idParamSchema), deletePendidikan);
+
 router.post('/jurusan', validate(createJurusanSchema), createJurusan);
+router.patch('/jurusan/:id', validateParams(idParamSchema), validate(updateJurusanSchema), updateJurusan);
+router.delete('/jurusan/:id', validateParams(idParamSchema), deleteJurusan);
 
 // --- Instansi ---
 router.post('/instansi', validate(createInstansiSchema), createInstansi);

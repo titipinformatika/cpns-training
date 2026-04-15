@@ -13,6 +13,8 @@ import adminLaporanRoutes from './admin-laporan.routes.js';
 import kontribusiSoalRoutes from './kontribusi-soal.routes.js';
 import adminKontribusiRoutes from './admin-kontribusi.routes.js';
 import leaderboardRoutes from './leaderboard.routes.js';
+import adminUserRoutes from './admin-user.routes.js';
+import wilayahRoutes from './wilayah.routes.js';
 
 const router = Router();
 
@@ -29,6 +31,8 @@ router.use('/ujian', ujianRoutes);
 router.use('/ujian/simulasi', ujianEngineRoutes);
 router.use('/laporan-soal', laporanSoalRoutes);
 router.use('/kontribusi-soal', kontribusiSoalRoutes);
+router.use('/admin/users', adminUserRoutes);
+router.use('/wilayah', wilayahRoutes);
 router.use('/leaderboard', leaderboardRoutes);
 
 export default router;
