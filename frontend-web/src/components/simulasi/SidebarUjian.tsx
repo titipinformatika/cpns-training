@@ -48,36 +48,9 @@ export function SidebarUjian({
         sidebarOpen ? 'w-80' : 'w-0'
       } flex-shrink-0 bg-white border-r border-slate-200 overflow-hidden transition-all duration-300 z-[19] flex flex-col h-full shadow-2xl md:shadow-none`}
     >
-      <div className="h-full overflow-y-auto flex flex-col w-80">
-        <div className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 border-b border-slate-200 flex-shrink-0">
-          <div className="md:hidden flex items-center gap-2.5 mb-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 uppercase">
-              {user?.nama?.substring(0, 2) || 'UU'}
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-800 text-sm truncate">
-                {user?.nama || 'Anonim'}
-              </p>
-              <p className="text-xs text-slate-400 truncate">Sesi #{sesiUjianId}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-1.5 text-center">
-            <div className="bg-white rounded-xl py-2 shadow-sm border border-emerald-100">
-              <p className="font-bold text-emerald-600">{answeredCount}</p>
-              <p className="text-xs text-slate-400 mt-0.5">Dijawab</p>
-            </div>
-            <div className="bg-white rounded-xl py-2 shadow-sm border border-amber-100">
-              <p className="font-bold text-amber-500">{flaggedCount}</p>
-              <p className="text-xs text-slate-400 mt-0.5">Ragu</p>
-            </div>
-            <div className="bg-white rounded-xl py-2 shadow-sm border border-slate-100">
-              <p className="font-bold text-slate-500">{unansweredCount}</p>
-              <p className="text-xs text-slate-400 mt-0.5">Belum</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 p-3 space-y-4">
+      <div className="h-full flex flex-col w-80">
+        {/* Scrollable Questions Grid */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-4">
           {categoriesPresent.map((catString) => {
             const cfg =
               CATEGORY_CONFIG[catString as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG['TWK'];
@@ -93,9 +66,6 @@ export function SidebarUjian({
                     <p className="text-white text-xs font-bold">{catString}</p>
                     <p className="text-white/70 text-[10px] leading-tight">{cfg.fullLabel}</p>
                   </div>
-                  <span className="bg-white/20 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                    {catAnswered}/{catQs.length}
-                  </span>
                 </div>
                 <div className="grid grid-cols-7 gap-1.5">
                   {catQs.map((q) => (
@@ -116,22 +86,23 @@ export function SidebarUjian({
           })}
         </div>
 
-        <div className="p-3 border-t border-slate-100 flex-shrink-0">
-          <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+        {/* Sticky Legend Footer */}
+        <div className="p-3 border-t border-slate-200 bg-slate-50 flex-shrink-0 shadow-[0_-4px_6px_-2px_rgba(0,0,0,0.03)]">
+          <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
             Keterangan
           </p>
-          <div className="grid grid-cols-2 gap-y-1.5 gap-x-2">
+          <div className="grid grid-cols-2 gap-y-2 gap-x-2">
             {[
               { color: 'bg-emerald-500', label: 'Dijawab' },
               { color: 'bg-amber-400', label: 'Ragu-ragu' },
-              { color: 'bg-slate-200', label: 'Belum' },
+              { color: 'bg-slate-200 border-black/10', label: 'Belum' },
               { color: 'bg-indigo-600', label: 'Aktif' },
             ].map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5">
+              <div key={item.label} className="flex items-center gap-2">
                 <div
-                  className={`w-3 h-3 rounded flex-shrink-0 border border-black/10 ${item.color}`}
+                  className={`w-4 h-4 rounded-md flex-shrink-0 border border-black/5 shadow-sm ${item.color}`}
                 />
-                <span className="text-[10px] text-slate-500 font-medium">{item.label}</span>
+                <span className="text-[11px] text-slate-600 font-bold">{item.label}</span>
               </div>
             ))}
           </div>

@@ -54,7 +54,7 @@ export function SimulasiFooter({
         <button
           onClick={scrollToPrevious}
           disabled={isFirst}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-sm transition-all border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-sm transition-all bg-slate-500 hover:bg-slate-600 border border-slate-600 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ChevronLeft size={16} /> Sebelumnya
         </button>
@@ -62,13 +62,13 @@ export function SimulasiFooter({
         {activeQuestionId && (
           <button
             onClick={() => toggleRagu(activeQuestionId)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-sm transition-all border ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-sm ${
               isFlagged
-                ? 'bg-amber-100 border-amber-300 text-amber-700'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                ? 'bg-amber-500 hover:bg-amber-600 border border-amber-600 text-white'
+                : 'bg-white border border-amber-500 text-amber-600 hover:bg-amber-50'
             }`}
           >
-            <Flag size={14} className={isFlagged ? 'fill-amber-500 text-amber-600' : ''} />
+            <Flag size={14} className={isFlagged ? 'text-white fill-white' : ''} />
             Ragu-ragu
           </button>
         )}
@@ -76,7 +76,7 @@ export function SimulasiFooter({
         <button
           onClick={scrollToNext}
           disabled={isLast}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-sm transition-all border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-sm transition-all bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Selanjutnya <ChevronRight size={16} />
         </button>
