@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import clsx from 'clsx';
+
 
 interface PaginationProps {
   currentPage: number;

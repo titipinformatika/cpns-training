@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useAuth } from '../../contexts/AuthContext';
 import { userApi } from '../../api/user';
-import { masterApi } from '../../api/master';
+import { masterApi, wilayahApi } from '../../api/master';
 import { useMasterData } from '../../hooks/useMasterData';
 import SearchableDropdown from '../../components/ui/SearchableDropdown';
 import toast from 'react-hot-toast';
@@ -31,8 +32,8 @@ const biodataSchema = z.object({
   tanggal_lahir: z.string().nullable(),
   jenis_kelamin: z.enum(['LAKI_LAKI', 'PEREMPUAN']).nullable(),
   alamat: z.string().nullable(),
-  provinsi: z.string().max(100).nullable(),
-  kota: z.string().max(100).nullable(),
+  provinsi_kode: z.string().nullable(),
+  kota_kode: z.string().nullable(),
   tingkat_pendidikan_id: z.number().nullable(),
   jurusan_id: z.number().nullable(),
   nama_universitas: z.string().max(200).nullable(),
@@ -45,9 +46,12 @@ type BiodataForm = z.infer<typeof biodataSchema>;
 
 export default function EditBiodataPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formasiList, setFormasiList] = useState<any[]>([]);
+  const [provinsiList, setProvinsiList] = useState<any[]>([]);
+  const [kotaList, setKotaList] = useState<any[]>([]);
   const [isLoadingFormasi, setIsLoadingFormasi] = useState(false);
   const [selectedJurusan, setSelectedJurusan] = useState<{id: number, nama: string} | null>(null);
 
@@ -60,7 +64,7 @@ export default function EditBiodataPage() {
     setValue,
     watch,
     reset,
-    formState: { isSubmitting },
+    formState: { isSubmitting, errors },
   } = useForm<BiodataForm>({
     resolver: zodResolver(biodataSchema),
     defaultValues: {
@@ -69,8 +73,8 @@ export default function EditBiodataPage() {
       tanggal_lahir: '',
       jenis_kelamin: null,
       alamat: '',
-      provinsi: '',
-      kota: '',
+      provinsi_kode: null,
+      kota_kode: null,
       tingkat_pendidikan_id: null,
       jurusan_id: null,
       nama_universitas: '',
@@ -81,6 +85,8 @@ export default function EditBiodataPage() {
   });
 
   const watchedInstansiId = watch('instansi_id');
+  const watchedPendidikanId = watch('tingkat_pendidikan_id');
+  const watchedProvinsiKode = watch('provinsi_kode');
 
   // Load existing biodata
   const loadData = async () => {
@@ -98,13 +104,13 @@ export default function EditBiodataPage() {
         }
 
         reset({
-          nama_lengkap: data.nama_lengkap,
+          nama_lengkap: data.nama_lengkap || user?.nama || '',
           no_hp: data.no_hp,
           tanggal_lahir: formattedDate,
           jenis_kelamin: data.jenis_kelamin,
           alamat: data.alamat,
-          provinsi: data.provinsi,
-          kota: data.kota,
+          provinsi_kode: data.provinsi_kode,
+          kota_kode: data.kota_kode,
           tingkat_pendidikan_id: data.tingkat_pendidikan_id,
           jurusan_id: data.jurusan_id,
           nama_universitas: data.nama_universitas,
@@ -116,6 +122,9 @@ export default function EditBiodataPage() {
         if (data.jurusan_id && data.jurusan) {
           setSelectedJurusan({ id: data.jurusan_id, nama: data.jurusan.nama });
         }
+      } else {
+        // Pre-fill name from registration for new biodata
+        setValue('nama_lengkap', user?.nama || '');
       }
     } catch (err) {
       setError('Gagal memuat data lama. Silakan muat ulang halaman.');
@@ -125,15 +134,25 @@ export default function EditBiodataPage() {
     }
   };
 
+  const loadMasterData = async () => {
+    try {
+      const resProv = await wilayahApi.getProvinsi();
+      setProvinsiList(resProv.data.data);
+    } catch (err) {
+      console.error('Gagal memuat data wilayah', err);
+    }
+  };
+
   useEffect(() => {
     loadData();
-  }, [reset]);
+    loadMasterData();
+  }, []);
 
   // Cascade Logic: Load Formasi when Instansi changes
   useEffect(() => {
     if (watchedInstansiId) {
       setIsLoadingFormasi(true);
-      masterApi.getFormasi(watchedInstansiId)
+      masterApi.getFormasi({ instansi_id: watchedInstansiId })
         .then(res => {
           setFormasiList(res.data.data);
         })
@@ -145,14 +164,37 @@ export default function EditBiodataPage() {
     }
   }, [watchedInstansiId]);
 
+  // Reset Jurusan when Pendidikan changes
+  useEffect(() => {
+    if (initialLoading) return; // Skip during initial load
+    setSelectedJurusan(null);
+    setValue('jurusan_id', null);
+  }, [watchedPendidikanId, setValue, initialLoading]);
+
+  // Load Kota when Provinsi changes
+  useEffect(() => {
+    if (watchedProvinsiKode) {
+      wilayahApi.getKota(watchedProvinsiKode)
+        .then(res => setKotaList(res.data.data))
+        .catch(err => console.error(err));
+    } else {
+      setKotaList([]);
+    }
+  }, [watchedProvinsiKode]);
+
   async function onSubmit(data: BiodataForm) {
     try {
       // Convert empty strings to null for backend
-      const payload = Object.fromEntries(
+      const payload: any = Object.fromEntries(
         Object.entries(data).map(([key, value]) => [key, value === '' ? null : value])
       );
 
-      await userApi.upsertBiodata(payload as any);
+      // Convert tanggal_lahir to valid ISO-8601 Datetime string for strict backend validation
+      if (payload.tanggal_lahir) {
+        payload.tanggal_lahir = new Date(payload.tanggal_lahir).toISOString();
+      }
+
+      await userApi.upsertBiodata(payload);
       toast.success('Biodata berhasil disimpan!');
       navigate('/profil');
     } catch (err: any) {
@@ -265,22 +307,41 @@ export default function EditBiodataPage() {
               <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-indigo-500" /> Provinsi
               </label>
-              <input 
-                type="text" 
+              <select
+                {...register('provinsi_kode')}
+                onChange={(e) => {
+                  setValue('provinsi_kode', e.target.value || null);
+                  setValue('kota_kode', null); // Reset kota
+                }}
                 className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
-                {...register('provinsi')}
-              />
+              >
+                <option value="">Pilih Provinsi</option>
+                {provinsiList.map((p) => (
+                  <option key={p.kode} value={p.kode}>{p.nama}</option>
+                ))}
+              </select>
+              {errors.provinsi_kode && (
+                <p className="text-xs text-red-500">{errors.provinsi_kode.message}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
               <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-indigo-500" /> Kota/Kabupaten
               </label>
-              <input 
-                type="text" 
-                className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
-                {...register('kota')}
-              />
+              <select
+                {...register('kota_kode')}
+                disabled={!watchedProvinsiKode}
+                className="w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
+              >
+                <option value="">Pilih Kota/Kabupaten</option>
+                {kotaList.map((k) => (
+                  <option key={k.kode} value={k.kode}>{k.nama}</option>
+                ))}
+              </select>
+              {errors.kota_kode && (
+                <p className="text-xs text-red-500">{errors.kota_kode.message}</p>
+              )}
             </div>
           </div>
         </div>
@@ -322,6 +383,7 @@ export default function EditBiodataPage() {
                     setValue('jurusan_id', item?.id || null);
                   }}
                   placeholder="Cari jurusan..."
+                  pendidikanId={watchedPendidikanId}
                 />
               </div>
 

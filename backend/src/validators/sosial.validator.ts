@@ -28,8 +28,22 @@ export const kirimKontribusiSchema = z.object({
   opsi_c: z.string().min(1, 'Opsi C wajib diisi'),
   opsi_d: z.string().min(1, 'Opsi D wajib diisi'),
   opsi_e: z.string().min(1, 'Opsi E wajib diisi'),
-  jawaban_benar: z.enum(['A', 'B', 'C', 'D', 'E']),
+  jawaban_benar: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
+  skor_a: z.coerce.number().int().min(1).max(5).optional(),
+  skor_b: z.coerce.number().int().min(1).max(5).optional(),
+  skor_c: z.coerce.number().int().min(1).max(5).optional(),
+  skor_d: z.coerce.number().int().min(1).max(5).optional(),
+  skor_e: z.coerce.number().int().min(1).max(5).optional(),
   pembahasan: z.string().optional(),
+}).refine(data => {
+  // Untuk TKP (diindikasikan dengan adanya skor), skor harus lengkap.
+  // Untuk non-TKP, jawaban_benar harus ada.
+  const hasSkor = data.skor_a !== undefined || data.skor_b !== undefined;
+  const hasJawaban = data.jawaban_benar !== undefined;
+  return hasSkor || hasJawaban;
+}, {
+  message: 'Jawaban benar atau skor TKP harus diisi',
+  path: ['jawaban_benar']
 });
 
 export const reviewKontribusiSchema = z.object({

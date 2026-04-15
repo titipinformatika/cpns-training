@@ -4,6 +4,7 @@ import { successResponse, paginatedResponse, errorResponse } from '../utils/resp
 import { parsePagination } from '../utils/pagination.js';
 import { sanitizeObject } from '../utils/sanitize.js';
 import { AppError } from '../middlewares/error.middleware.js';
+import { serializeFormasi } from '../utils/serializer.js';
 
 /**
  * GET /api/user/biodata
@@ -17,12 +18,18 @@ export async function getBiodata(req: Request, res: Response, next: NextFunction
         jurusan: true,
         instansi: true,
         formasi: true,
+        provinsi: true,
+        kota: true,
       },
     });
 
     if (!biodata) {
       // Jika belum diisi, kembalikan null atau data kosong yang rapi
       return res.json(successResponse(null, 'Biodata belum diisi'));
+    }
+
+    if (biodata.formasi) {
+      biodata.formasi = serializeFormasi(biodata.formasi);
     }
 
     res.json(successResponse(biodata, 'Biodata berhasil diambil'));
@@ -37,12 +44,14 @@ export async function getBiodata(req: Request, res: Response, next: NextFunction
 export async function upsertBiodata(req: Request, res: Response, next: NextFunction) {
   try {
     const body = sanitizeObject(req.body, [
-      'nama_lengkap', 'alamat', 'provinsi', 'kota', 'nama_universitas'
+      'nama_lengkap', 'alamat', 'nama_universitas'
     ]);
     const { tanggal_lahir, ...dataToUpsert } = body;
     
     const updateData: any = {
       ...dataToUpsert,
+      provinsi_kode: req.body.provinsi_kode || null,
+      kota_kode: req.body.kota_kode || null,
       tanggal_lahir: tanggal_lahir ? new Date(tanggal_lahir) : undefined,
     };
 
@@ -58,8 +67,14 @@ export async function upsertBiodata(req: Request, res: Response, next: NextFunct
         jurusan: true,
         instansi: true,
         formasi: true,
+        provinsi: true,
+        kota: true,
       },
     });
+
+    if (biodata.formasi) {
+      biodata.formasi = serializeFormasi(biodata.formasi);
+    }
 
     res.json(successResponse(biodata, 'Biodata berhasil diperbarui'));
   } catch (error) {

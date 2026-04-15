@@ -183,7 +183,7 @@ export default function ProfilPage() {
                     <div>
                       <p className="text-xs text-gray-500 font-medium uppercase">Domisili</p>
                       <p className="text-gray-900 font-semibold">
-                        {biodata.kota ? `${biodata.kota}, ` : ''}{biodata.provinsi || '-'}
+                        {biodata.kota?.nama ? `${biodata.kota.nama}, ` : ''}{biodata.provinsi?.nama || '-'}
                       </p>
                     </div>
                   </div>

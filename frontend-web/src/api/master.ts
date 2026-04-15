@@ -1,24 +1,24 @@
 import api from './axios';
-import type { ApiResponse } from '../types';
+import type { ApiResponse, PaginatedResponse } from '../types';
 
 export const masterApi = {
   getKategori: (params?: any) => 
-    api.get<ApiResponse<any[]>>('/master/kategori', { params }),
+    api.get<PaginatedResponse<any>>('/master/kategori', { params }),
   
   getJenisSoal: (params?: any) =>
-    api.get<ApiResponse<any[]>>('/master/jenis-soal', { params }),
+    api.get<PaginatedResponse<any>>('/master/jenis-soal', { params }),
     
   getPendidikan: (params?: any) => 
-    api.get<ApiResponse<any[]>>('/master/pendidikan', { params }),
+    api.get<PaginatedResponse<any>>('/master/pendidikan', { params }),
   
   getJurusan: (params?: any) =>
-    api.get<ApiResponse<any[]>>('/master/jurusan', { params }),
+    api.get<PaginatedResponse<any>>('/master/jurusan', { params }),
     
   getInstansi: (params?: any) => 
-    api.get<ApiResponse<any[]>>('/master/instansi', { params }),
+    api.get<PaginatedResponse<any>>('/master/instansi', { params }),
   
   getFormasi: (params?: any) => 
-    api.get<ApiResponse<any[]>>('/master/formasi', { params }),
+    api.get<PaginatedResponse<any>>('/master/formasi', { params }),
 };
 
 export const wilayahApi = {

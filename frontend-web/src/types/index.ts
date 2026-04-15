@@ -43,8 +43,8 @@ export interface BiodataUser {
   tanggal_lahir: string | null;
   jenis_kelamin: 'LAKI_LAKI' | 'PEREMPUAN' | null;
   alamat: string | null;
-  provinsi: string | null;
-  kota: string | null;
+  provinsi_kode: string | null;
+  kota_kode: string | null;
   tingkat_pendidikan_id: number | null;
   jurusan_id: number | null;
   nama_universitas: string | null;
@@ -55,6 +55,8 @@ export interface BiodataUser {
   jurusan?: { nama: string };
   instansi?: { nama: string };
   formasi?: { nama_jabatan: string };
+  provinsi?: { kode: string; nama: string };
+  kota?: { kode: string; nama: string };
 }
 
 // ===== Master Data =====
@@ -248,6 +250,11 @@ export interface KontribusiSoal {
   level: 'MUDAH' | 'SEDANG' | 'SULIT' | 'HOST';
   pertanyaan: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  skor_a: number | null;
+  skor_b: number | null;
+  skor_c: number | null;
+  skor_d: number | null;
+  skor_e: number | null;
   review_note: string | null;
   created_at: string;
 }

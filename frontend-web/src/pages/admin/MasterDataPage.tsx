@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { masterApi, wilayahApi } from '../../api/master';
 import { adminMasterApi } from '../../api/admin';
-import { Plus, Pencil, Trash2, Loader2, X, AlertCircle, Database, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, X, AlertCircle, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import Pagination from '../../components/common/Pagination';

@@ -31,8 +31,20 @@ const kontribusiSchema = z.object({
   opsi_c: z.string().min(1, 'Opsi C wajib diisi'),
   opsi_d: z.string().min(1, 'Opsi D wajib diisi'),
   opsi_e: z.string().min(1, 'Opsi E wajib diisi'),
-  jawaban_benar: z.string().min(1, 'Jawaban benar wajib dipilih'),
+  jawaban_benar: z.string().optional(),
+  skor_a: z.string().optional(),
+  skor_b: z.string().optional(),
+  skor_c: z.string().optional(),
+  skor_d: z.string().optional(),
+  skor_e: z.string().optional(),
   pembahasan: z.string().optional(),
+}).refine(data => {
+  const hasSkor = data.skor_a || data.skor_b || data.skor_c || data.skor_d || data.skor_e;
+  const hasJawaban = !!data.jawaban_benar;
+  return hasSkor || hasJawaban;
+}, {
+  message: 'Jawaban benar atau skor TKP harus diisi',
+  path: ['jawaban_benar']
 });
 
 type KontribusiForm = z.infer<typeof kontribusiSchema>;
@@ -84,6 +96,8 @@ export default function KontribusiSoalPage() {
   const watchedKategori = watch('kategori_soal_id');
   const watchedJawaban = watch('jawaban_benar');
 
+  const isTKP = kategoris.find(k => k.id === Number(watchedKategori))?.kode === 'TKP';
+
   // Files State
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
     pertanyaan_gambar: null,
@@ -104,12 +118,8 @@ export default function KontribusiSoalPage() {
 
   const fetchMasterData = async () => {
     try {
-      const [resKat, resJen] = await Promise.all([
-        masterApi.getKategori(),
-        masterApi.getJenisSoal()
-      ]);
+      const resKat = await masterApi.getKategori();
       setKategoris(resKat.data.data);
-      setJeniss(resJen.data.data);
     } catch (err) {
       toast.error('Gagal mengambil data master');
     } finally {
@@ -140,7 +150,7 @@ export default function KontribusiSoalPage() {
 
   const fetchJenis = async (katId: number) => {
     try {
-      const res = await masterApi.getJenisSoal(katId);
+      const res = await masterApi.getJenisSoal({ kategori_id: katId });
       setJeniss(res.data.data);
     } catch (err) {
       toast.error('Gagal mengambil data jenis soal');
@@ -370,6 +380,17 @@ export default function KontribusiSoalPage() {
                             errors[fieldName] ? "border-red-500 bg-red-50" : "border-transparent focus:border-indigo-500 focus:bg-white"
                           )}
                         />
+
+                        {isTKP && (
+                          <input
+                            type="number"
+                            min={1}
+                            max={5}
+                            {...register(`skor_${opt.toLowerCase()}` as any)}
+                            placeholder="Skor"
+                            className="w-20 px-3 py-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl font-bold text-emerald-700 placeholder:text-emerald-300 outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                          />
+                        )}
                         
                         <input
                           type="file"
@@ -406,30 +427,41 @@ export default function KontribusiSoalPage() {
                   );
                 })}
 
-                <div className="pt-6 border-t border-gray-100 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1 h-6 bg-emerald-500 rounded-full" />
-                    <label className="text-xs font-extrabold text-gray-400 uppercase tracking-widest">Jawaban Benar</label>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {OPSIS.map(opt => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setValue('jawaban_benar', opt, { shouldValidate: true })}
-                        className={clsx(
-                          "w-14 h-14 rounded-2xl font-extrabold transition-all border-2",
-                          watchedJawaban === opt 
-                            ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-100 scale-110" 
-                            : "bg-gray-50 border-transparent text-gray-400 hover:border-emerald-200"
-                        )}
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                  {errors.jawaban_benar && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.jawaban_benar.message}</p>}
-                </div>
+                 {!isTKP ? (
+                   <div className="pt-6 border-t border-gray-100 space-y-4">
+                     <div className="flex items-center gap-2">
+                       <div className="w-1 h-6 bg-emerald-500 rounded-full" />
+                       <label className="text-xs font-extrabold text-gray-400 uppercase tracking-widest">Jawaban Benar</label>
+                     </div>
+                     <div className="flex flex-wrap gap-3">
+                       {OPSIS.map(opt => (
+                         <button
+                           key={opt}
+                           type="button"
+                           onClick={() => setValue('jawaban_benar', opt, { shouldValidate: true })}
+                           className={clsx(
+                             "w-14 h-14 rounded-2xl font-extrabold transition-all border-2",
+                             watchedJawaban === opt 
+                               ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-100 scale-110" 
+                               : "bg-gray-50 border-transparent text-gray-400 hover:border-emerald-200"
+                           )}
+                         >
+                           {opt}
+                         </button>
+                       ))}
+                     </div>
+                     {errors.jawaban_benar && <p className="text-red-500 text-[10px] font-bold ml-1">{errors.jawaban_benar.message}</p>}
+                   </div>
+                 ) : (
+                   <div className="pt-6 border-t border-gray-100">
+                     <div className="flex items-center gap-2 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                        <AlertCircle className="w-4 h-4 text-emerald-600" />
+                        <p className="text-[10px] font-bold text-emerald-900 leading-tight">
+                          Mode TKP Aktif: Masukkan skor 1-5 untuk setiap pilihan jawaban.
+                        </p>
+                     </div>
+                   </div>
+                 )}
              </div>
           </div>
 

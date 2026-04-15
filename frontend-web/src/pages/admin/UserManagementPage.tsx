@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { adminUsersApi } from '../../api/admin';
-import { Users, Search, Loader2, AlertCircle, ShieldCheck, ShieldAlert, MoreVertical } from 'lucide-react';
+import { Users, Search, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Pagination from '../../components/common/Pagination';
 import clsx from 'clsx';
