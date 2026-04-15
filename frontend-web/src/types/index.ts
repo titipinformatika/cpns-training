@@ -100,6 +100,10 @@ export interface SoalSimulasi {
     kode: string;
     nama: string;
   };
+  level: string;
+  jenis_soal: {
+    nama: string;
+  };
 }
 
 export interface MulaiUjianResponse {

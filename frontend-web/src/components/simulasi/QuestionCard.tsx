@@ -48,8 +48,16 @@ export function QuestionCard({
             {q.nomor_urut}
           </div>
           <div>
-            <span className="text-xs text-slate-400 hidden sm:inline">Soal #{q.nomor_urut} &middot; </span>
-            <span className={`text-xs font-semibold ${cfg.navText}`}>{catString}</span>
+            <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              <span className={`text-xs font-semibold ${cfg.navText}`}>{catString}</span>
+              <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-medium">{q.jenis_soal?.nama || 'Umum'}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                q.level === 'MUDAH' ? 'bg-green-100 text-green-700' :
+                q.level === 'SULIT' ? 'bg-red-100 text-red-700' :
+                'bg-blue-100 text-blue-700'
+              }`}>{q.level}</span>
+            </div>
+            <span className="text-[11px] text-slate-400">Soal #{q.nomor_urut}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">

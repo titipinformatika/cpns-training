@@ -45,10 +45,10 @@ export function SidebarUjian({
   return (
     <aside
       className={`absolute md:relative ${
-        sidebarOpen ? 'w-64' : 'w-0'
+        sidebarOpen ? 'w-80' : 'w-0'
       } flex-shrink-0 bg-white border-r border-slate-200 overflow-hidden transition-all duration-300 z-[19] flex flex-col h-full shadow-2xl md:shadow-none`}
     >
-      <div className="h-full overflow-y-auto flex flex-col w-64">
+      <div className="h-full overflow-y-auto flex flex-col w-80">
         <div className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 border-b border-slate-200 flex-shrink-0">
           <div className="md:hidden flex items-center gap-2.5 mb-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 uppercase">
@@ -97,7 +97,7 @@ export function SidebarUjian({
                     {catAnswered}/{catQs.length}
                   </span>
                 </div>
-                <div className="grid grid-cols-5 gap-1.5">
+                <div className="grid grid-cols-7 gap-1.5">
                   {catQs.map((q) => (
                     <button
                       key={q.ujian_soal_id}
